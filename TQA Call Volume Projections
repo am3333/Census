@@ -1,0 +1,613 @@
+*Call Volume Analysis;
+*Last Updated: 11 November 2019;
+
+*Specify the total number of years in the data set;
+%let datayears=6;
+
+/**************************************************************************************************************************
+***************************************************************************************************************************
+**************************************************************************************************************************/
+
+*Importing Data;
+proc import out=cv
+	datafile="J:\acsops1\ACS_HUSR\Reports\TQA Call Volume Projections"
+	dbms=xlsx replace;
+	getnames=yes;
+run;
+
+*Start: Graph 1 & Graph 2 - Average TQA Call Volume per Panel;
+
+*Create New Data Set - Average Call Volumes by Panel and Year;
+proc means 
+	data=cv noprint;
+	var Panel_1 Panel_2 Panel_3 Panel_4 Panel_5 Panel_6 Panel_7 Panel_8 Panel_9 Panel_10 Panel_11 Panel_12;
+	output out=cv_avg (drop=_type_ _freq_)
+	mean(Panel_1)=Panel_1 
+	mean(Panel_2)=Panel_2
+	mean(Panel_3)=Panel_3
+	mean(Panel_4)=Panel_4 
+	mean(Panel_5)=Panel_5
+	mean(Panel_6)=Panel_6
+	mean(Panel_7)=Panel_7
+	mean(Panel_8)=Panel_8
+	mean(Panel_9)=Panel_9
+	mean(Panel_10)=Panel_10
+	mean(Panel_11)=Panel_11
+	mean(Panel_12)=Panel_12;
+	by year;
+run;
+
+*Transpose Data - Change "cv_avg" Format from Wide to Narrow / Creates Panel Variable;
+proc transpose
+	data=cv_avg out=cv_avg;
+	by year;
+run;
+
+*Rename Variables / Remove Redundant Variables;
+data cv_avg; set cv_avg
+	(rename=(_NAME_=Panel_String));
+	label Panel_String = ' ';
+	drop _LABEL_;
+run;
+
+data cv_avg; set cv_avg
+	(rename=(COL1=Call_Volume));
+run;
+
+*Create a Panel Numeric Variable;
+data cv_avg;
+	set cv_avg;
+    if Panel_String="Panel_1" then Panel=1;
+    if Panel_String="Panel_2" then Panel=2;
+	if Panel_String="Panel_3" then Panel=3;
+	if Panel_String="Panel_4" then Panel=4;
+	if Panel_String="Panel_5" then Panel=5;
+    if Panel_String="Panel_6" then Panel=6;
+	if Panel_String="Panel_7" then Panel=7;
+	if Panel_String="Panel_8" then Panel=8;
+	if Panel_String="Panel_9" then Panel=9;
+    if Panel_String="Panel_10" then Panel=10;
+	if Panel_String="Panel_11" then Panel=11;
+	if Panel_String="Panel_12" then Panel=12;
+run;
+
+*Establish Graph Picture Dimensions;
+ods graphics /
+width=1000px height=600px;
+
+*Graph 1 - Average TQA Call Volume per Panel;
+proc sgpanel 
+	data=cv_avg noautolegend;
+	panelby year / onepanel columns=&datayears novarname
+		headerattrs=(family="calibri" size=12pt);
+	title1 
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"Average TQA Call Volume from 2015 to Present";
+	title2 
+		c=gray   
+		h=12pt 
+		font="calibri" 
+		"Data Source: ACS Operations Reports";
+	rowaxis
+		grid
+		labelattrs=(family="calibri" size=12pt weight=bold)
+		valueattrs=(family="calibri" size=12pt)
+		label="Average TQA Call Volume";
+	footnote ;
+	colaxis
+		grid
+		type=discrete
+		display=(nolabel noticks novalues)offsetmax=0 offsetmin=0;
+	series x=Panel y=Call_Volume / group=year
+		lineattrs=(thickness=2px);
+run;
+
+*Graph 2 - Average TQA Call Volume per Panel - Overlayed;
+proc sgplot 
+	data=cv_avg;
+	title1 
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"Overlayed: Average TQA Call Volume from 2015 to Present";
+	title2 
+		c=gray   
+		h=12pt 
+		font="calibri" 
+		"Data Source: ACS Operations Reports";
+	xaxis 
+		type=discrete 
+		grid 
+		labelattrs=(family="calibri" size=12pt weight=bold)
+		valueattrs=(family="calibri" size=12pt);
+	yaxis
+		grid
+		labelattrs=(family="calibri" size=12pt weight=bold)
+		valueattrs=(family="calibri" size=12pt)
+		label="Average TQA Call Volume";
+	series x=Panel y=Call_Volume / group=year
+		lineattrs=(thickness=2px);
+		discretelegend /
+			position=bottomleft
+			title="Year" 
+			valueattrs=(family="calibri" size=10pt) 
+			titleattrs=(family="calibri" size=12pt weight=bold);
+run;
+
+*Start: Graph 3 - Average TQA Call Volume per Panel;
+
+*Create Panel Dataset - Drop Panel Day Variable;
+data cv_panel;
+	set cv;
+	drop day;
+run;
+
+
+*Transpose Data - Change "cv_panel" Format from Wide to Narrow / Creates Panel Variable;
+proc transpose
+	data=cv_panel out=cv_panel;
+	by year;
+run;
+
+*Rename Variables / Remove Redundant Variables;
+data cv_panel; set cv_panel
+	(rename=(_NAME_=Panel_String));
+	label Panel_String = ' ';
+	drop _LABEL_;
+run;
+
+*Coalesce Call Volume Variables into a Single Variable;
+data cv_panel;
+	set cv_panel;
+	array COL[36];
+	do i=1 to dim(COL);
+	Call_Volume = COL[i];
+	output;
+	end;
+	format Call_Volume best12.;
+    drop COL1-COL36 i;
+run;
+
+*Create Numeric Panel Variable;
+data cv_panel; set cv_panel;
+	if Panel_String="Panel_1" then Panel=1;
+	if Panel_String="Panel_2" then Panel=2;
+	if Panel_String="Panel_3" then Panel=3;
+	if Panel_String="Panel_4" then Panel=4;
+	if Panel_String="Panel_5" then Panel=5;
+	if Panel_String="Panel_6" then Panel=6;
+	if Panel_String="Panel_7" then Panel=7;
+	if Panel_String="Panel_8" then Panel=8;
+	if Panel_String="Panel_9" then Panel=9;
+	if Panel_String="Panel_10" then Panel=10;
+	if Panel_String="Panel_11" then Panel=11;
+	if Panel_String="Panel_12" then Panel=12;
+run;
+
+*Create Numeric Panel Format Variable;
+proc format;
+	value panel_string
+	1="Panel 1"
+	2="Panel 2"
+	3="Panel 3" 
+	4="Panel 4" 
+	5="Panel 5" 
+	6="Panel 6"
+	7="Panel 7"
+	8="Panel 8" 
+	9="Panel 9" 
+	10="Panel 10"
+	11="Panel 11" 
+	12="Panel 12"
+	;
+run;
+
+*Graph 3 - TQA Call Volumes per Panel;
+proc sgpanel 
+	data=cv_panel noautolegend;
+	format Panel Panel_String.;
+	panelby Panel / onepanel columns=12 novarname
+	headerattrs=(family="calibri" size=10pt);
+	vbox Call_Volume / group=Panel; 
+	title1 
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"TQA Call Volume per Panel";
+	title2 
+		c=gray   
+		h=12pt 
+		font="calibri" 
+		"Data Source: ACS Operations Reports";
+	rowaxis
+		labelattrs=(family="calibri" size=12pt weight=bold)
+		valueattrs=(family="calibri" size=12pt)
+		label="TQA Call Volume";
+	colaxis
+		type=discrete;
+run;
+
+*Start: Graph 4 - Average TQA Call Volume per Day;
+
+*Create Panel Dataset - Drop Panel Day Variable;
+data cv_day;
+	set cv;
+	drop year;
+run;
+
+*Sort data by day for transpose;
+proc sort data=cv_day out=cv_day;
+	by day;
+run;
+
+
+*Transpose Data - Change "cv_day" Format from Wide to Narrow / Creates Panel Variable;
+proc transpose
+	data=cv_day out=cv_day;
+	by day;
+run;
+
+*Rename Variables / Remove Redundant Variables;
+data cv_day; set cv_day;
+	drop _LABEL_ _NAME_;
+run;
+
+*Coalesce Call Volume Variables into a Single Variable;
+data cv_day;
+	set cv_day;
+	array COL[&datayears];
+	do i=1 to dim(COL);
+	Call_Volume = COL[i];
+	output;
+	end;
+	format Call_Volume best12.;
+    drop COL1-COL&datayears i;
+run;
+
+*Create Numeric Panel Variable;
+data cv_day; set cv_day;
+	if Day=0 then Day_Group=1;
+	if Day=1 then Day_Group=1;
+	if Day=2 then Day_Group=1;
+	if Day=3 then Day_Group=1;
+	if Day=4 then Day_Group=1;
+	if Day=5 then Day_Group=1;
+	if Day=6 then Day_Group=2;
+	if Day=7 then Day_Group=2;
+	if Day=8 then Day_Group=2;
+	if Day=9 then Day_Group=2;
+	if Day=10 then Day_Group=2;
+	if Day=11 then Day_Group=2;
+	if Day=12 then Day_Group=3;
+	if Day=13 then Day_Group=3;
+	if Day=14 then Day_Group=3;
+	if Day=15 then Day_Group=3;
+	if Day=16 then Day_Group=3;
+	if Day=17 then Day_Group=3;
+	if Day=18 then Day_Group=4;
+	if Day=19 then Day_Group=4;
+	if Day=20 then Day_Group=4;
+	if Day=21 then Day_Group=4;
+	if Day=22 then Day_Group=4;
+	if Day=23 then Day_Group=4;
+	if Day=24 then Day_Group=5;
+	if Day=25 then Day_Group=5;
+	if Day=26 then Day_Group=5;
+	if Day=27 then Day_Group=5;
+	if Day=28 then Day_Group=5;
+	if Day=29 then Day_Group=5;
+	if Day=30 then Day_Group=6;
+	if Day=31 then Day_Group=6;
+	if Day=32 then Day_Group=6;
+	if Day=33 then Day_Group=6;
+	if Day=34 then Day_Group=6;
+	if Day=35 then Day_Group=6;
+run;
+
+*Create Numeric Panel Format Variable;
+proc format;
+	value day_group
+	1="Days 0-5"
+	2="Days 6-11"
+	3="Days 12-17" 
+	4="Days 18-23" 
+	5="Days 24-29" 
+	6="Days 30-35"
+	;
+run;
+
+*Graph 4 - TQA Call Volumes per Day;
+proc sgpanel 
+	data=cv_day noautolegend;
+	format day_group day_group.;
+	panelby Day_Group / onepanel columns=6 novarname
+	headerattrs=(family="calibri" size=10pt);
+	vbox Call_Volume / group=Day_Group; 
+	title1 
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"TQA Call Volume per Day";
+	title2 
+		c=gray   
+		h=12pt 
+		font="calibri" 
+		"Data Source: ACS Operations Reports";
+	rowaxis
+		labelattrs=(family="calibri" size=12pt weight=bold)
+		valueattrs=(family="calibri" size=12pt)
+		label="TQA Call Volume";
+	colaxis
+		type=discrete;
+run;
+
+
+*Start: Call Volume Projections;
+
+/*
+The United States federal government shutdown of 2018–2019 occurred from midnight EST on December 22, 2018 until January 25, 2019 
+(35 days). DY2019 Panels 1-3 subsequently experienced higher than normal call volumes, and are thus omitted from this CVP analysis.
+*/
+
+data cv; set cv;
+	if year=2019 then Panel_1=.;
+	if year=2019 then Panel_2=.;
+	if year=2019 then Panel_3=.;
+run;
+
+proc sort data=cv out=cv;
+	by day;
+run;
+
+*Create New Data Set - Average Call Volumes by Panel and Day;
+proc means 
+	data=cv noprint;
+	var Panel_1 Panel_2 Panel_3 Panel_4 Panel_5 Panel_6 Panel_7 Panel_8 Panel_9 Panel_10 Panel_11 Panel_12;
+	output out=cv_cvp (drop=_type_ _freq_)
+	mean(Panel_1)=Panel_1 
+	mean(Panel_2)=Panel_2
+	mean(Panel_3)=Panel_3
+	mean(Panel_4)=Panel_4 
+	mean(Panel_5)=Panel_5
+	mean(Panel_6)=Panel_6
+	mean(Panel_7)=Panel_7
+	mean(Panel_8)=Panel_8
+	mean(Panel_9)=Panel_9
+	mean(Panel_10)=Panel_10
+	mean(Panel_11)=Panel_11
+	mean(Panel_12)=Panel_12;
+	by Day;
+run;
+
+*Create Panel String Variables;
+data cv_cvp; set cv_cvp;
+	length Panel_01 $ 11;
+	length Panel_02 $ 11;
+	length Panel_03 $ 11;
+	length Panel_04 $ 11;
+	length Panel_05 $ 11;
+	length Panel_06 $ 11;
+	length Panel_07 $ 11;
+	length Panel_08 $ 11;
+	length Panel_09 $ 11;
+	length Panel_010 $ 11;
+	length Panel_011 $ 11;
+	length Panel_012 $ 11;
+
+    if 300>Panel_1=>1 then Panel_01="Low";
+    if 300>Panel_2=>1 then Panel_02="Low";
+    if 300>Panel_3=>1 then Panel_03="Low";
+    if 300>Panel_4=>1 then Panel_04="Low";
+    if 300>Panel_5=>1 then Panel_05="Low";
+    if 300>Panel_6=>1 then Panel_06="Low";
+    if 300>Panel_7=>1 then Panel_07="Low";
+    if 300>Panel_8=>1 then Panel_08="Low";
+	if 300>Panel_9=>1 then Panel_09="Low";
+    if 300>Panel_10=>1 then Panel_010="Low";
+    if 300>Panel_11=>1 then Panel_011="Low";
+    if 300>Panel_12=>1 then Panel_012="Low";
+
+    if 800>Panel_1=>300 then Panel_01="Medium";
+    if 800>Panel_2=>300 then Panel_02="Medium";
+    if 800>Panel_3=>300 then Panel_03="Medium";
+    if 800>Panel_4=>300 then Panel_04="Medium";
+    if 800>Panel_5=>300 then Panel_05="Medium";
+    if 800>Panel_6=>300 then Panel_06="Medium";
+    if 800>Panel_7=>300 then Panel_07="Medium";
+    if 800>Panel_8=>300 then Panel_08="Medium";
+	if 800>Panel_9=>300 then Panel_09="Medium";
+    if 800>Panel_10=>300 then Panel_010="Medium";
+    if 800>Panel_11=>300 then Panel_011="Medium";
+    if 800>Panel_12=>300 then Panel_012="Medium";
+
+    if 1200>Panel_1=>800 then Panel_01="High";
+	if 1200>Panel_2=>800 then Panel_02="High";
+	if 1200>Panel_3=>800 then Panel_03="High";
+	if 1200>Panel_4=>800 then Panel_04="High";
+	if 1200>Panel_5=>800 then Panel_05="High";
+	if 1200>Panel_6=>800 then Panel_06="High";
+	if 1200>Panel_7=>800 then Panel_07="High";
+	if 1200>Panel_8=>800 then Panel_08="High";
+	if 1200>Panel_9=>800 then Panel_09="High";
+	if 1200>Panel_10=>800 then Panel_010="High";
+	if 1200>Panel_11=>800 then Panel_011="High";
+	if 1200>Panel_12=>800 then Panel_012="High";
+
+	if Panel_1=>1200  then Panel_01="Very High";
+	if Panel_2=>1200  then Panel_02="Very High";
+	if Panel_3=>1200  then Panel_03="Very High";
+	if Panel_4=>1200  then Panel_04="Very High";
+	if Panel_5=>1200  then Panel_05="Very High";
+	if Panel_6=>1200  then Panel_06="Very High";
+	if Panel_7=>1200  then Panel_07="Very High";
+	if Panel_8=>1200  then Panel_08="Very High";
+	if Panel_9=>1200  then Panel_09="Very High";
+	if Panel_10=>1200  then Panel_010="Very High";
+	if Panel_11=>1200  then Panel_011="Very High";
+	if Panel_12=>1200  then Panel_012="Very High";
+
+	Day_2=Day;
+
+	label Panel_01="Panel 1";
+	label Panel_02="Panel 2";
+	label Panel_03="Panel 3";
+	label Panel_04="Panel 4";
+	label Panel_05="Panel 5";
+	label Panel_06="Panel 6";
+	label Panel_07="Panel 7";
+	label Panel_08="Panel 8";
+	label Panel_09="Panel 9";
+	label Panel_010="Panel 10";
+	label Panel_011="Panel 11";
+	label Panel_012="Panel 12";
+	label Day_2="Day";
+
+	drop Panel_1;
+	drop Panel_2;
+	drop Panel_3;
+	drop Panel_4;
+	drop Panel_5;
+	drop Panel_6;
+	drop Panel_7;
+	drop Panel_8;
+	drop Panel_9;
+	drop Panel_10;
+	drop Panel_11;
+	drop Panel_12;
+run;
+
+*Call Volume Projections;
+ods pdf file="J:\acsops1\ACS_HUSR\Reports\TQA Call Volume Projections.pdf";
+
+proc report
+	data=cv_cvp out=cv_cvp
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define Day / center;
+	define Day_2 / center;
+	compute Panel_01;
+		if Panel_01="Low" then do; call define("Panel_01","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_01="Medium" then do; call define("Panel_01","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_01="High" then do; call define("Panel_01","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_01="Very High" then do; call define("Panel_01","STYLE","STYLE=[background=#ff5a5a]");end;
+	endcomp;
+	compute Panel_02;
+		if Panel_02="Low" then do; call define("Panel_02","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_02="Medium" then do; call define("Panel_02","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_02="High" then do; call define("Panel_02","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_02="Very High" then do; call define("Panel_02","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_03;
+		if Panel_03="Low" then do; call define("Panel_03","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_03="Medium" then do; call define("Panel_03","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_03="High" then do; call define("Panel_03","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_03="Very High" then do; call define("Panel_03","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_04;
+		if Panel_04="Low" then do; call define("Panel_04","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_04="Medium" then do; call define("Panel_04","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_04="High" then do; call define("Panel_04","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_04="Very High" then do; call define("Panel_04","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_05;
+		if Panel_05="Low" then do; call define("Panel_05","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_05="Medium" then do; call define("Panel_05","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_05="High" then do; call define("Panel_05","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_05="Very High" then do; call define("Panel_05","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_06;
+		if Panel_06="Low" then do; call define("Panel_06","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_06="Medium" then do; call define("Panel_06","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_06="High" then do; call define("Panel_06","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_06="Very High" then do; call define("Panel_06","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_07;
+		if Panel_07="Low" then do; call define("Panel_07","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_07="Medium" then do; call define("Panel_07","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_07="High" then do; call define("Panel_07","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_07="Very High" then do; call define("Panel_07","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_08;
+		if Panel_08="Low" then do; call define("Panel_08","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_08="Medium" then do; call define("Panel_08","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_08="High" then do; call define("Panel_08","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_08="Very High" then do; call define("Panel_08","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_09;
+		if Panel_09="Low" then do; call define("Panel_09","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_09="Medium" then do; call define("Panel_09","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_09="High" then do; call define("Panel_09","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_09="Very High" then do; call define("Panel_09","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_010;
+		if Panel_010="Low" then do; call define("Panel_010","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_010="Medium" then do; call define("Panel_010","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_010="High" then do; call define("Panel_010","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_010="Very High" then do; call define("Panel_010","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_011;
+		if Panel_011="Low" then do; call define("Panel_011","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_011="Medium" then do; call define("Panel_011","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_011="High" then do; call define("Panel_011","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_011="Very High" then do; call define("Panel_011","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+	compute Panel_012;
+		if Panel_012="Low" then do; call define("Panel_012","STYLE","STYLE=[background=#8aff8a]"); end;
+		if Panel_012="Medium" then do; call define("Panel_012","STYLE","STYLE=[background=#ffff8a]"); end;
+		if Panel_012="High" then do; call define("Panel_012","STYLE","STYLE=[background=#ffb48a]"); end;
+		if Panel_012="Very High" then do; call define("Panel_012","STYLE","STYLE=[background=#ff5a5a]"); end;
+	endcomp;
+
+	title1 
+		c=black
+		h=18pt 
+		font="calibri" 
+		"TQA Call Volume Projections";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: ACS Operations Reports";
+	footnote1
+		c=black
+		font="calibri"
+		justify=left
+		"Low : 1-299 calls";
+	footnote2
+		c=black
+		font="calibri"
+		justify=left
+		"Medium : 300-799 calls";
+	footnote3
+		c=black
+		font="calibri"
+		justify=left
+		"High : 800-1,199 calls";
+	footnote4
+		c=black
+		font="calibri"
+		justify=left
+		"Very High : 1,200+ calls";
+	footnote5
+		c=black
+		h=8pt
+		font=calibri
+		"  ";
+	footnote6
+		c=black
+		h=8pt
+		font=calibri
+		justify=left
+		"The United States federal government shutdown of 2018–2019 occurred from midnight EST on December 22, 2018 until January 25, 2019 (35 days).";
+	footnote7
+		c=black
+		h=8pt
+		font=calibri
+		justify=left
+		"DY2019 Panels 1-3 subsequently experienced higher than normal call volumes and their data are, thus, omitted from this CVP table.";
+run;
+ods pdf close;
+quit;
