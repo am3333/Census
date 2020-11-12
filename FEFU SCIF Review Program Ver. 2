@@ -1,0 +1,1466 @@
+*FEFU SCIF Review Program Ver. 2;
+*Last Updated: 29 April 2020    ;
+
+*SPECIFY THE DATE OF THE SCIF YOU'D LIKE TO REVIEW - YYMMDD;
+%let date   = 200910;
+
+*SPECIFY THE NAME OF THE FEFU SCIF LAYOUT;
+%let layout = DY2021 FEFU Layout;
+
+*UPDATE THE VARIABLES YOU'D LIKE TO REVIEW;
+data VARLIST; input SCIF_VARIABLE $1-40; datalines;
+RECORDTYPE
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*SPECIFY THE LOCATION OF THE FEFU SCIF LAYOUT AND THE SCIF                                                                ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+%let    layoutfile = J:\acsops1\FEFU\Production\SCIF Layouts\&layout;    *Location of the FEFU SCIF Layout file;
+%let    sciffile   = P:\adp9\transfr2\tfu\tf08_&date..dat;  *Location of the FEFU SCIF file;
+libname acedir      "P:\adp9\transfr2\hu\ace\";             *Automated Clerical Editing Data directory;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*PROGRAM HEADINGS   																								      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+%let year =%substr(&date,1,2);
+%let month=%substr(&date,3,2);
+%let day  =%substr(&date,5,2);
+%let month_string=&month;
+
+%Macro month_string;
+%if &month_string=01 %then %let month_string=January  ;
+%if &month_string=02 %then %let month_string=February ;
+%if &month_string=03 %then %let month_string=March    ;
+%if &month_string=04 %then %let month_string=April    ;
+%if &month_string=05 %then %let month_string=May      ;
+%if &month_string=06 %then %let month_string=June     ;
+%if &month_string=07 %then %let month_string=July     ;
+%if &month_string=08 %then %let month_string=August   ;
+%if &month_string=09 %then %let month_string=September;
+%if &month_string=10 %then %let month_string=October  ;
+%if &month_string=11 %then %let month_string=November ;
+%if &month_string=12 %then %let month_string=December ;
+%Mend month_string;
+%month_string;
+
+title ;
+proc odstext;
+p "FEFU SCIF Review Ver. 2" / style=[fontstyle=italic fontweight=bold fontsize=20pt fontfamily="calibri" textdecoration=underline];
+p "Variable Review in  Sample Control Input File (SCIF) for &day &month_string 20&year" / style=[fontweight=bold fontsize=14pt fontfamily="calibri"];
+run;
+
+data VARLIST; set VARLIST;
+	x="x";
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT1000 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT1000Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT1000";
+	getnames=yes;
+run;
+
+data RT1000Layout; set RT1000Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT1000Layout; set RT1000Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT1000Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT1000;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT1000; set RT1000;
+	if RECORDTYPE^=10 then delete;
+run;
+
+proc sort data=RT1000Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT1000Varlist;
+	merge RT1000Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT1000Varlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 1000";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "Master Control System (MCS) data – Contains fields used by the Computer Assisted Interviewing (CAI) control systems and the instrument to help control the interview.";
+
+ods layout gridded columns=5;
+%macro RT1000_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT1000_data_isolated;
+	format String $255.;
+	set RT1000;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT1000_data_isolated; set RT1000_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT1000_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT1000_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT1000_data_aggregated out=RT1000_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT1000_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT2008 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT2008Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT2008";
+	getnames=yes;
+run;
+
+data RT2008Layout; set RT2008Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT2008Layout; set RT2008Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT2008Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT2008;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT2008; set RT2008;
+	if RECORDTYPE^=20 then delete;
+run;
+
+proc sort data=RT2008Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT2008Varlist;
+	merge RT2008Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT2008Varlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 2008";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "Demographic Address – Contains address fields. Includes two 60-character lines for Puerto Rican addresses.";
+
+ods layout gridded columns=5;
+%macro RT2008_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT2008_data_isolated;
+	format String $255.;
+	set RT2008;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT2008_data_isolated; set RT2008_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT2008_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT2008_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT2008_data_aggregated out=RT2008_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT2008_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT4200 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT4200Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT4200";
+	getnames=yes;
+run;
+
+data RT4200Layout; set RT4200Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT4200Layout; set RT4200Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT4200Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT4200;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT4200; set RT4200;
+	if RECORDTYPE^=42 then delete;
+run;
+
+proc sort data=RT4200Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT4200VARLIST;
+	merge RT4200Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT4200VARLIST;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 4200";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "Household Roster Information.";
+		
+ods layout gridded columns=5;
+%macro RT4200_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT4200_data_isolated;
+	format String $255.;
+	set RT4200;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT4200_data_isolated; set RT4200_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT4200_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT4200_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT4200_data_aggregated out=RT4200_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT4200_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT5001 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT5001Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT5001";
+	getnames=yes;
+run;
+
+data RT5001Layout; set RT5001Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT5001Layout; set RT5001Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT5001Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT5001;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT5001; set RT5001;
+	if RECORDTYPE^=50 then delete;
+run;
+
+proc sort data=RT5001Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT5001Varlist;
+	merge RT5001Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT5001VARLIST;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 5001";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "CATI Case Specific Scheduler Data – Contains case specific Start, Stop and Notification dates. Includes day of week blocking fields. Also includes interviewer skill sets.";
+
+ods layout gridded columns=5;
+%macro RT5001_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT5001_data_isolated;
+	format String $255.;
+	set RT5001;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT5001_data_isolated; set RT5001_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT5001_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT5001_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT5001_data_aggregated out=RT5001_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT5001_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT5100 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT5100Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT5100";
+	getnames=yes;
+run;
+
+data RT5100Layout; set RT5100Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT5100Layout; set RT5100Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT5100Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT5100;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT5100; set RT5100;
+	if RECORDTYPE^=51 then delete;
+run;
+
+proc sort data=RT5100Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT5100Varlist;
+	merge RT5100Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT5100Varlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 5100";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "CATI Phone Number Data – Contains phone number information.";
+		
+ods layout gridded columns=5;
+%macro RT5100_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT5100_data_isolated;
+	format String $255.;
+	set RT5100;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT5100_data_isolated; set RT5100_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT5100_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT5100_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT5100_data_aggregated out=RT5100_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT5100_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT8400 Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT8400Layout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT8400";
+	getnames=yes;
+run;
+
+data RT8400Layout; set RT8400Layout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT8400Layout; set RT8400Layout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT8400Layout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT8400;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT8400; set RT8400;
+	if RECORDTYPE^=84 then delete;
+run;
+
+proc sort data=RT8400Layout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT8400Varlist;
+	merge RT8400Layout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT8400Varlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 8400";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "CATI Front/Back Failed Edit Follow-up Case Scores - Passes tallies of problem types and problem categories to the WebCATI.";
+		
+ods layout gridded columns=5;
+%macro RT8400_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT8400_data_isolated;
+	format String $255.;
+	set RT8400;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT8400_data_isolated; set RT8400_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT8400_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT8400_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT8400_data_aggregated out=RT8400_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT8400_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT8500 Housing Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT8500HousingLayout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT8500 Housing";
+	getnames=yes;
+run;
+
+data RT8500HousingLayout; set RT8500HousingLayout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT8500HousingLayout; set RT8500HousingLayout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT8500HousingLayout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT8500Housing;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT8500Housing; set RT8500Housing;
+	if RECORDTYPE^=85 then delete;
+run;
+
+data RT8500Housing; set RT8500Housing;
+	by CMID;
+	if FIRST.CMID then Count=1;
+	if Count^=1 then delete;
+	drop Count;
+run;
+
+proc sort data=RT8500HousingLayout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT8500HousingVarlist;
+	merge RT8500HousingLayout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT8500HousingVarlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 8500";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "Dependent Data - Housing Data, survey-specific fields from previous interviewes used for reference and bounding as well as GQ Listing SCIF information.";
+
+ods layout gridded columns=5;
+%macro RT8500Housing_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT8500Housing_data_isolated;
+	format String $255.;
+	set RT8500Housing;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT8500Housing_data_isolated; set RT8500Housing_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT8500Housing_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT8500Housing_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT8500Housing_data_aggregated out=RT8500Housing_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT8500Housing_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RT8500 Person Check																								              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+*Import Data from Truthdeck;
+proc import out=RT8500PersonLayout
+	datafile="&layoutfile"
+	dbms=xlsx replace;
+	sheet="RT8500 Person";
+	getnames=yes;
+run;
+
+data RT8500PersonLayout; set RT8500PersonLayout;
+	keep SCIF_VARIABLE LENGTH POSITION;
+	if SCIF_VARIABLE="" then delete;
+run;
+
+*Setup input statement in layfile;
+data RT8500PersonLayout; set RT8500PersonLayout;
+	CHARACTER="$";
+	INPUT=catx('', of SCIF_VARIABLE CHARACTER POSITION);
+	drop CHARACTER;
+run;
+
+*Establish layfile observations as a macro;
+%macro input_macro;
+	%let dsid=%sysfunc(open(RT8500PersonLayout));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data RT8500Person;
+	infile "&sciffile" missover truncover;
+	input %input_macro;
+run;
+
+data RT8500Person; set RT8500Person;
+	if RECORDTYPE^=85 then delete;
+run;
+
+data RT8500Person; set RT8500Person;
+	by CMID;
+	if FIRST.CMID then Count=1;
+	if Count=1 then delete;
+	drop Count;
+run;
+
+proc sort data=RT8500PersonLayout;
+	by SCIF_VARIABLE;
+run;
+
+proc sort data=Varlist;
+	by SCIF_VARIABLE;
+run;
+
+data RT8500PersonVarlist;
+	merge RT8500PersonLayout Varlist;
+	by SCIF_VARIABLE;
+	if x="" then delete;
+	if INPUT="" then delete;
+	drop LENGTH POSITION INPUT X;
+run;
+
+proc sql noprint;
+	select distinct SCIF_VARIABLE into:varlist separated by " "
+	from RT8500PersonVarlist;
+run;
+
+title1 c=black h=13pt font="calibri" justify=left bold "RECORD TYPE: 8500";
+title2 c=black h=11pt font="calibri" justify=left italic underlin=1 "Dependant Data – Person Data, Survey specific fields.";
+		
+ods layout gridded columns=5;
+%macro RT8500Person_frequency;
+%local i variable;
+%let i=1;
+%do %while (%scan(&varlist, &i) ne);
+	%let variable = %scan(&varlist, &i);
+
+ods region;
+
+data RT8500Person_data_isolated;
+	format String $255.;
+	set RT8500Person;
+	keep String &variable;
+	String=&variable;
+	drop &variable;
+run;
+
+data RT8500Person_data_isolated; set RT8500Person_data_isolated;
+	&variable=String;
+	drop String;
+run;
+
+proc sql noprint;
+	create table RT8500Person_data_aggregated as
+	select *,count(*) as COUNT 
+	from RT8500Person_data_isolated group by &variable;
+quit;
+
+proc report
+	data=RT8500Person_data_aggregated out=RT8500Person_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define COUNT / display center;
+run;
+%let i = %eval(&i + 1);
+%end;
+%mend;
+%RT8500Person_frequency
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*MAIL VS. SCIF COMPARISON	     																			              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+ods layout gridded columns=2;
+
+************************;
+*MAIL HOUSING COMPARISON;
+************************;
+data housingdatafrommail; set acedir.hsecomb&date;
+	if INETFLAG=1 then delete;
+run;
+
+proc transpose data=housingdatafrommail out=housingdatafrommail;
+	by CMID; var _all_;
+run;
+
+data housingdatafrommail; set housingdatafrommail;
+	SCIF_VARIABLE=_NAME_;
+	MAIL_VALUE=COL1;
+	HDATFLAG="X";
+	keep CMID SCIF_VARIABLE MAIL_VALUE HDATFLAG;
+	drop else;
+run;
+
+data mailhousingdatainscif; set RT8500Housing;
+	if MAILREC="" then delete;
+run;
+
+proc transpose data=mailhousingdatainscif out=mailhousingdatainscif;
+	by CMID; var _all_;
+run;
+
+data mailhousingdatainscif; set mailhousingdatainscif;
+	SCIF_VARIABLE=_NAME_;
+	SCIF_VALUE=COL1;
+	FEFUFLAG="X";
+	keep CMID SCIF_VARIABLE SCIF_VALUE FEFUFLAG;
+	drop else;
+run;
+
+proc sort data=housingdatafrommail out=housingdatafrommail;
+	by CMID SCIF_VARIABLE;
+run;
+
+proc sort data=mailhousingdatainscif out=mailhousingdatainscif;
+	by CMID SCIF_VARIABLE;
+run;
+
+data mailhousingdatacomparison;
+	merge mailhousingdatainscif housingdatafrommail;
+	by CMID SCIF_VARIABLE; 
+run;
+
+data mailhousingdatacomparison; set mailhousingdatacomparison;
+	if HDATFLAG="" then delete;
+	if FEFUFLAG="" then delete;
+	if SCIF_VALUE=MAIL_VALUE then delete;
+	drop HDATFLAG FEFUFLAG;
+run;
+
+proc sort data=mailhousingdatacomparison out=mailhousingdatacomparison;
+	by SCIF_VARIABLE;
+run;
+
+%let dsid=%sysfunc(open(mailhousingdatacomparison));
+%let mailhousingpresent=%sysfunc(attrn(&dsid,nlobs));
+%let dsid=%sysfunc(close(&dsid));
+%put mailhousingpresent=&mailhousingpresent;
+ods region;
+%macro mailhousingdataempty;
+%if &mailhousingpresent=0 %then %do;
+proc odstext;
+p "Mail vs. SCIF - Housing Data Comparison" / style=[fontweight=bold fontsize=14pt just=c fontfamily="calibri"];
+p "There were no differences detected in mail data between the HSE data file and the SCIF" / style=[fontstyle=italic fontsize=11pt just=c fontfamily="calibri"];
+run;
+%end;
+%if &mailhousingpresent^=0 %then %do;
+proc report nowd
+	data=mailhousingdatacomparison out=mailhousingdatacomparison
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID / display center;
+	define SCIF_VARIABLE / display center;
+	define SCIF_VALUE /display center flow style(column)=[cellwidth=2in];
+	define MAIL_VALUE /display center flow style(column)=[cellwidth=2in];
+	title1 c=black bold h=14pt font="calibri" "Mail vs. SCIF - Housing Data Comparison";
+	title2 c=black italic h=11pt font="calibri" "Differences detected in mail data between the HSE data file and the SCIF";
+run;
+%end;
+%mend mailhousingdataempty;
+%mailhousingdataempty;
+
+************************;
+*MAIL PERSON COMPARISON ;
+************************;
+data persondatafrommail; set acedir.popcomb&date;
+	if INETFLAG=1 then delete;
+run;
+
+proc transpose data=persondatafrommail out=persondatafrommail;
+	by CMID PNUM; var _all_;
+run;
+
+data persondatafrommail; set persondatafrommail;
+	SCIF_VARIABLE=_NAME_;
+	MAIL_VALUE=COL1;
+	PDATFLAG="X";
+	keep CMID PNUM SCIF_VARIABLE MAIL_VALUE PDATFLAG;
+	drop else;
+run;
+
+data mailpersondatainscif; set RT8500Person;
+	if MAILREC="" then delete;
+run;
+
+proc transpose data=mailpersondatainscif out=mailpersondatainscif;
+	by CMID PNUM; var _all_;
+run;
+
+data mailpersondatainscif; set mailpersondatainscif;
+	SCIF_VARIABLE=_NAME_;
+	SCIF_VALUE=COL1;
+	FEFUFLAG="X";
+	keep CMID PNUM SCIF_VARIABLE SCIF_VALUE FEFUFLAG;
+	drop else;
+run;
+
+proc sort data=persondatafrommail out=persondatafrommail;
+	by CMID PNUM SCIF_VARIABLE;
+run;
+
+proc sort data=mailpersondatainscif out=mailpersondatainscif;
+	by CMID PNUM SCIF_VARIABLE;
+run;
+
+data mailpersondatacomparison;
+	merge mailpersondatainscif persondatafrommail;
+	by CMID PNUM SCIF_VARIABLE; 
+run;
+
+data mailpersondatacomparison; set mailpersondatacomparison;
+	if PDATFLAG="" then delete;
+	if FEFUFLAG="" then delete;
+	if SCIF_VALUE=MAIL_VALUE then delete;
+	drop PDATFLAG FEFUFLAG;
+run;
+
+proc sort data=mailpersondatacomparison out=mailpersondatacomparison;
+	by SCIF_VARIABLE;
+run;
+
+%let dsid=%sysfunc(open(mailpersondatacomparison));
+%let mailpersonpresent=%sysfunc(attrn(&dsid,nlobs));
+%let dsid=%sysfunc(close(&dsid));
+%put mailpersonpresent=&mailpersonpresent;
+ods region;
+%macro mailpersondataempty;
+%if &mailpersonpresent=0 %then %do;
+proc odstext;
+p "Mail vs. SCIF - Person Data Comparison" / style=[fontweight=bold fontsize=14pt just=c fontfamily="calibri"];
+p "There were no differences detected in mail data between the POP data file and the SCIF" / style=[fontstyle=italic fontsize=11pt just=c fontfamily="calibri"];
+run;
+%end;
+%if &mailpersonpresent^=0 %then %do;
+proc report nowd
+	data=mailpersondatacomparison out=mailpersondatacomparison
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID / display center;
+	define PNUM / display center;
+	define SCIF_VARIABLE / display center;
+	define SCIF_VALUE /display center flow style(column)=[cellwidth=2in];
+	define MAIL_VALUE /display center flow style(column)=[cellwidth=2in];
+	title1 c=black bold h=14pt font="calibri" "Mail vs. SCIF - Person Data Comparison";
+	title2 c=black italic h=11pt font="calibri" "Differences detected in mail data between the POP data file and the SCIF";
+run;
+%end;
+%mend mailpersondataempty;
+%mailpersondataempty;
+
+************************;
+*INET HOUSING COMPARISON;
+************************;
+data housingdatafrominet; set acedir.hsecomb&date;
+	if INETFLAG^=1 then delete;
+run;
+
+proc transpose data=housingdatafrominet out=housingdatafrominet;
+	by CMID; var _all_;
+run;
+
+data housingdatafrominet; set housingdatafrominet;
+	SCIF_VARIABLE=_NAME_;
+	INET_VALUE=COL1;
+	HDATFLAG="X";
+	keep CMID SCIF_VARIABLE INET_VALUE HDATFLAG;
+	drop else;
+run;
+
+data inethousingdatainscif; set RT8500Housing;
+	if MAILREC^="" then delete;
+run;
+
+proc transpose data=inethousingdatainscif out=inethousingdatainscif;
+	by CMID; var _all_;
+run;
+
+data inethousingdatainscif; set inethousingdatainscif;
+	SCIF_VARIABLE=_NAME_;
+	SCIF_VALUE=COL1;
+	FEFUFLAG="X";
+	keep CMID SCIF_VARIABLE SCIF_VALUE FEFUFLAG;
+	drop else;
+run;
+
+proc sort data=housingdatafrominet out=housingdatafrominet;
+	by CMID SCIF_VARIABLE;
+run;
+
+proc sort data=inethousingdatainscif out=inethousingdatainscif;
+	by CMID SCIF_VARIABLE;
+run;
+
+data inethousingdatacomparison;
+	merge inethousingdatainscif housingdatafrominet;
+	by CMID SCIF_VARIABLE; 
+run;
+
+data inethousingdatacomparison; set inethousingdatacomparison;
+	if HDATFLAG="" then delete;
+	if FEFUFLAG="" then delete;
+	if SCIF_VALUE=INET_VALUE then delete;
+	drop HDATFLAG FEFUFLAG;
+run;
+
+%let dsid=%sysfunc(open(inethousingdatacomparison));
+%let inethousingpresent=%sysfunc(attrn(&dsid,nlobs));
+%let dsid=%sysfunc(close(&dsid));
+%put inethousingpresent=&inethousingpresent;
+ods region;
+%macro inethousingdataempty;
+%if &inethousingpresent=0 %then %do;
+proc odstext;
+p "Internet vs. SCIF - Housing Data Comparison" / style=[fontweight=bold fontsize=14pt just=c fontfamily="calibri"];
+p "There were no differences detected in internet data between the HSE data file and the SCIF" / style=[fontstyle=italic fontsize=11pt just=c fontfamily="calibri"];
+run;
+%end;
+%if &inethousingpresent^=0 %then %do;
+proc report nowd
+	data=inethousingdatacomparison out=inethousingdatacomparison
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID / display center;
+	define SCIF_VARIABLE / display center;
+	define SCIF_VALUE /display center flow style(column)=[cellwidth=2in];
+	define INET_VALUE /display center flow style(column)=[cellwidth=2in];
+	title1 c=black bold h=14pt font="calibri" "Internet vs. SCIF - Housing Data Comparison";
+	title2 c=black italic h=11pt font="calibri" "Differences detected in internet data between the HSE data file and the SCIF";
+%end;
+%mend inethousingdataempty;
+%inethousingdataempty;
+
+************************;
+*INET PERSON COMPARISON ;
+************************;
+data persondatafrominet; set acedir.popcomb&date;
+	if INETFLAG^=1 then delete;
+run;
+
+proc transpose data=persondatafrominet out=persondatafrominet;
+	by CMID PNUM; var _all_;
+run;
+
+data persondatafrominet; set persondatafrominet;
+	SCIF_VARIABLE=_NAME_;
+	INET_VALUE=COL1;
+	PDATFLAG="X";
+	keep CMID PNUM SCIF_VARIABLE INET_VALUE PDATFLAG;
+	drop else;
+run;
+
+data inetpersondatainscif; set RT8500Person;
+	if MAILREC^="" then delete;
+run;
+
+proc transpose data=inetpersondatainscif out=inetpersondatainscif;
+	by CMID PNUM; var _all_;
+run;
+
+data inetpersondatainscif; set inetpersondatainscif;
+	SCIF_VARIABLE=_NAME_;
+	SCIF_VALUE=COL1;
+	FEFUFLAG="X";
+	keep CMID PNUM SCIF_VARIABLE SCIF_VALUE FEFUFLAG;
+	drop else;
+run;
+
+proc sort data=persondatafrominet out=persondatafrominet;
+	by CMID PNUM SCIF_VARIABLE;
+run;
+
+proc sort data=inetpersondatainscif out=inetpersondatainscif;
+	by CMID PNUM SCIF_VARIABLE;
+run;
+
+data inetpersondatacomparison;
+	merge inetpersondatainscif persondatafrominet;
+	by CMID PNUM SCIF_VARIABLE; 
+run;
+
+data inetpersondatacomparison; set inetpersondatacomparison;
+	if PDATFLAG="" then delete;
+	if FEFUFLAG="" then delete;
+	if SCIF_VALUE=INET_VALUE then delete;
+	drop PDATFLAG FEFUFLAG;
+run;
+
+proc sort data=inetpersondatacomparison out=inetpersondatacomparison;
+	by SCIF_VARIABLE;
+run;
+
+%let dsid=%sysfunc(open(inetpersondatacomparison));
+%let inetpersonpresent=%sysfunc(attrn(&dsid,nlobs));
+%let dsid=%sysfunc(close(&dsid));
+%put inetpersonpresent=&inetpersonpresent;
+ods region;
+%macro inetpersondataempty;
+%if &inetpersonpresent=0 %then %do;
+proc odstext;
+p "Internet vs. SCIF - Person Data Comparison" / style=[fontweight=bold fontsize=14pt just=c fontfamily="calibri"];
+p "There were no differences detected in internet data between the POP data file and the SCIF" / style=[fontstyle=italic fontsize=11pt just=c fontfamily="calibri"];
+run;
+%end;
+%if &inetpersonpresent^=0 %then %do;
+proc report nowd
+	data=inetpersondatacomparison out=inetpersondatacomparison
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID / display center;
+	define PNUM / display center;
+	define SCIF_VARIABLE / display center;
+	define SCIF_VALUE /display center flow style(column)=[cellwidth=2in];
+	define INET_VALUE /display center flow style(column)=[cellwidth=2in];
+	title1 c=black bold h=14pt font="calibri" "Internet vs. SCIF - Person Data Comparison";
+	title2 c=black italic h=11pt font="calibri" "Differences detected in internet data between the POP data file and the SCIF";
+run;
+%end;
+%mend inetpersondataempty;
+%inetpersondataempty;
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*SCIF MONITORING LOG - Reasons      	     																			  ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+%let scifdir = %substr(&sciffile,1,21);  
+libname scifdir "&scifdir";
+
+data reasons; 
+	keep TFU_1 TFU_2 TFU_3 TFU_4 TFU_5 TFU_A TFU_B TFU_C TFU_D TFU_E TFU_F TFU_G TFU_H TFU_I TFU_J;
+	set scifdir.scif&date;
+run;
+
+data reasons; set reasons;
+	TFU_A_NUMERIC=input(TFU_A, best5.);
+	TFU_B_NUMERIC=input(TFU_B, best5.);
+	TFU_C_NUMERIC=input(TFU_C, best5.);
+	TFU_D_NUMERIC=input(TFU_D, best5.);
+	TFU_E_NUMERIC=input(TFU_E, best5.);
+	TFU_F_NUMERIC=input(TFU_F, best5.);
+	TFU_G_NUMERIC=input(TFU_G, best5.);
+	TFU_H_NUMERIC=input(TFU_H, best5.);
+	TFU_I_NUMERIC=input(TFU_I, best5.);
+	TFU_J_NUMERIC=input(TFU_J, best5.);
+	TFU_1_NUMERIC=input(TFU_1, best5.);
+	TFU_2_NUMERIC=input(TFU_2, best5.);
+	TFU_3_NUMERIC=input(TFU_3, best5.);
+	TFU_4_NUMERIC=input(TFU_4, best5.);
+	TFU_5_NUMERIC=input(TFU_5, best5.);
+	drop TFU_1 TFU_2 TFU_3 TFU_4 TFU_5 TFU_A TFU_B TFU_C TFU_D TFU_E TFU_F TFU_G TFU_H TFU_I TFU_J;
+run;
+
+data reasons; set reasons;
+	TFU_A=TFU_A_NUMERIC;
+	TFU_B=TFU_B_NUMERIC;
+	TFU_C=TFU_C_NUMERIC;
+	TFU_D=TFU_D_NUMERIC;
+	TFU_E=TFU_E_NUMERIC;
+	TFU_F=TFU_F_NUMERIC;
+	TFU_G=TFU_G_NUMERIC;
+	TFU_H=TFU_H_NUMERIC;
+	TFU_I=TFU_I_NUMERIC;
+	TFU_J=TFU_J_NUMERIC;
+	TFU_1=TFU_1_NUMERIC;
+	TFU_2=TFU_2_NUMERIC;
+	TFU_3=TFU_3_NUMERIC;
+	TFU_4=TFU_4_NUMERIC;
+	TFU_5=TFU_5_NUMERIC;
+	drop TFU_1_NUMERIC TFU_2_NUMERIC TFU_3_NUMERIC TFU_4_NUMERIC TFU_5_NUMERIC TFU_A_NUMERIC TFU_B_NUMERIC TFU_C_NUMERIC TFU_D_NUMERIC TFU_E_NUMERIC TFU_F_NUMERIC TFU_G_NUMERIC TFU_H_NUMERIC TFU_I_NUMERIC TFU_J_NUMERIC;
+run;
+
+proc report
+	data=reasons out=reasons
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"];
+;
+	define TFU_A / display sum center;
+	define TFU_B / display sum center;
+	define TFU_C / display sum center;
+	define TFU_D / display sum center;
+	define TFU_E / display sum center;
+	define TFU_F / display sum center;
+	define TFU_G / display sum center;
+	define TFU_H / display sum center;
+	define TFU_I / display sum center;
+	define TFU_J / display sum center;
+	define TFU_1 / display sum center;
+	define TFU_2 / display sum center;
+	define TFU_3 / display sum center;
+	define TFU_4 / display sum center;
+	define TFU_5 / display sum center;
+	title1 c=black bold h=14pt font="calibri" justify=left "Sum of Reasons Why Cases Were Sent to FEFU on &day &month_string 20&year.";
+	title2 c=black h=11pt font="calibri" justify=left italic "Cases on this SCIF presented the following qualifications for FEFU. Input the table below into the FEFU Monitoring Program for analysis.";
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*SCIF MONITORING LOG - RPER Frequency      	     																			  ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+data rper; 
+	keep RPER;
+	set scifdir.scif&date;
+run;
+
+proc sql noprint;
+	create table RPER_data_aggregated as
+	select *,count(*) as COUNT 
+	from RPER group by RPER;
+quit;
+
+proc sql noprint;
+	select count(*) into:total from rper;
+quit;
+
+data RPER_data_aggregated; set RPER_data_aggregated;
+	format PERCENT percent10.;
+	PERCENT=COUNT/&total;
+run;
+
+proc report
+	data=RPER_data_aggregated out=RPER_data_aggregated
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define RPER / display center;
+	define COUNT / display center;
+	define PERCENT / display center;
+	title1 c=black bold h=14pt font="calibri" justify=left "Frequency of Person Records on the FEFU SCIF on &day &month_string 20&year.";
+	title2 c=black h=11pt font="calibri" justify=left italic "Cases deferred to this SCIF reported the following number of persons in their household. Input the table below into the FEFU Monitoring Program for analysis.";
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*MAIL VS. INTERNET CASES															                                      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+data mailvsint; 
+	keep inetflag;
+	set scifdir.scif&date;
+run;
+
+data mailvsint; set mailvsint;
+	if INETFLAG=0 then Mail=1;
+	if INETFLAG=1 then Internet=1;
+	if Mail^="" | Internet^="" then Total=1;
+	drop INETFLAG;
+run;
+
+proc report
+	data=mailvsint out=mailvsint
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"];
+;
+	define Mail     / display sum center;
+	define Internet / display sum center;
+	define Total    / display sum center;
+	title1 c=black bold h=14pt font="calibri" justify=left "Mail vs. Internet Cases on the FEFU SCIF on &day &month_string 20&year.";
+	title2 c=black h=11pt font="calibri" justify=left italic "Add the data from the 'Total' column into the FEFU SCIF Report. Thereafter, verify the daily cumulative in WebCATI.";
+run;
