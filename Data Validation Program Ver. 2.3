@@ -1,0 +1,753 @@
+*Data Validation Program - Version 2.3;
+*Last Updated: 15 September 2020;
+
+*IF YOU WANT TO SEE THE LOG, CLEAR THIS CODE; 
+options NOsource NOnotes;
+
+*SPECIFY YOUR TRUTHDECK FILE (WHOSE NAME SHOULD MATCH YOUR INSTRUMENT OUTPUT FILE);
+%let truthdeck = DY2021 TQA VT Jimmy;
+
+*ARE YOU RUNNING RECON FOR TQA/FEFU? ENTER "YES" OR "NO";
+%let blaise    = YES;
+
+*IF YOU'RE RUNNING RECON FOR TQA/FEFU, SPECIFY THE INSTRUMENT LAY FILE. OTHERWISE, IGNORE;
+%let layfile   = DY2021 TQA.lay;
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+*SPECIFY THE LOCATION OF YOUR TRUTHDECK FILE;
+%let truthdecklocation      = J:\acsops1\ACS_HUSR\Data Validation Ver. 2\Truthdeck;
+
+*SPECIFY THE LOCATION OF YOUR INSTRUMENT OUTPUT FILE;
+%let outputlocation         = J:\acsops1\ACS_HUSR\Data Validation Ver. 2\Instrument Output;
+
+*SPECIFY THE LOCATION OF YOUR INSTRUMENT LAY FILE;
+%let layfilelocation        = J:\acsops1\ACS_HUSR\Data Validation Ver. 2\Layfile;
+
+*SPECIFY WHERE FULL RESULTS SHOULD BE EXPORTED;
+%let resultslocation        = J:\acsops1\ACS_HUSR\Data Validation Ver. 2\Results;
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+**************************************************************************************************************************;
+ods _all_ close;
+*Import Data from Truthdeck;
+proc import out=truthdeck_sas
+	datafile="&truthdecklocation\&truthdeck"
+	dbms=xlsx replace;
+	getnames=yes;
+run;
+
+%let output = &truthdeck..dat;
+
+%MACRO INSTRUMENT;
+%if %upcase(&blaise)=NO %then %do;
+
+****************************************;
+*DATA VALIDATION CODE FOR IDC INSTRUMENT;
+****************************************;
+
+*Import Data from Output File;
+data output_sas;
+	infile "&outputlocation\&output" lrecl=350 missover truncover;
+	input CMID 1-9 PNUM 10-11 VARNAME $ 12-27 VALUE_OUTPUT $ 28-350;
+run;
+
+data output_sas; set output_sas;
+	format VALUE_NUM best20.;
+	VALUE_NUM=VALUE_OUTPUT;
+	if VALUE_NUM^=. then VALUE_OUTPUT=VALUE_NUM;
+	drop VALUE_NUM;
+run;
+
+*Sort IDC Truthdeck and Output Datasets for Merge;
+proc sort data=truthdeck_sas out=truthdeck_sas;
+	by CMID PNUM VARNAME;
+run;
+
+proc sort data=output_sas out=output_sas;
+	by CMID PNUM VARNAME VALUE_OUTPUT;
+run;
+
+proc transpose data=output_sas out=output_sas prefix=output_; 
+	by CMID PNUM VARNAME; 
+	var VALUE_OUTPUT;
+run;
+
+data output_sas; 
+	set output_sas; 
+	length VALUE_OUTPUT $600.; 
+	VALUE_OUTPUT=catx(', ', of output_:); 
+run;
+
+data output_sas;
+	set output_sas;
+	keep CMID PNUM VARNAME VALUE_OUTPUT;
+	drop else;
+run;
+
+*Merge Truthdeck and Output Datasets for Comparison;
+data full_output;
+	merge truthdeck_sas output_sas;
+	by CMID PNUM VARNAME; 
+run;
+
+data full_output;
+   retain CMID PNUM VARNAME VALUE_TRUTHDECK VALUE_OUTPUT VALUE_INFO RESEARCH RECON;
+   set full_output;
+run;
+
+*Format & Create String Variables;
+data full_output; set full_output;
+	format RECON $45.;
+	if VALUE_OUTPUT="" & VALUE_TRUTHDECK="" then delete;
+	if VALUE_TRUTHDECK=VALUE_OUTPUT then RECON="Match";
+	if VALUE_TRUTHDECK^=VALUE_OUTPUT then RECON="Value mismatch";
+	if VALUE_TRUTHDECK="" then RECON="Variable not present in Truthdeck";
+	if VALUE_OUTPUT="" then RECON="Variable not present in Output";
+run;
+
+title1 ;
+title2 ;
+title3 ;
+*Report full Results for IDC recon;
+options orientation=landscape leftmargin=.25in rightmargin=.25in;
+ods pdf file="&resultslocation\'&truthdeck'_FULL.pdf";
+
+proc report nowd
+	data=full_output out=full_output
+	style(header)=[background=#dfaaea fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID            / display center style(column)=[cellwidth=.7in];
+	define PNUM            / display center style(column)=[cellwidth=.5in];
+	define VARNAME         / display center style(column)=[cellwidth=1in];
+	define VALUE_TRUTHDECK / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_OUTPUT    / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_INFO      / display flow style(column)=[cellwidth=1.5in];
+	define RESEARCH        / display style(column)=[cellwidth=1.5in];
+	define RECON           / display style(column)=[cellwidth=2in];
+	compute RECON;
+*CMID;
+		if RECON="Value mismatch" then do; call define("CMID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("CMID","STYLE","STYLE=[background=#ffc4c4]"); end;
+*PNUM;
+		if RECON="Value mismatch" then do; call define("PNUM","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("PNUM","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VARNAME;
+		if RECON="Value mismatch" then do; call define("VARNAME","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VARNAME","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_TRUTHDECK;
+		if RECON="Value mismatch" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_OUTPUT;
+		if RECON="Value mismatch" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_INFO;
+		if RECON="Value mismatch" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#ffc4c4]"); end;
+*RESEARCH;
+		if RECON="Value mismatch" & RESEARCH="" then do; call define("RESEARCH","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" & RESEARCH="" then do; call define("RESEARCH","STYLE","STYLE=[background=#ffc4c4]"); end;
+*RECON;
+		if RECON="Match" then do; call define("RECON","STYLE","STYLE=[background=#e2ffe2]"); end;
+		if RECON="Value mismatch" then do; call define("RECON","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Truthdeck" then do; call define("RECON","STYLE","STYLE=[background=#cce0ff]"); end;
+		if RECON="Variable not present in Output" then do; call define("RECON","STYLE","STYLE=[background=#ffc4c4]"); end;
+	endcomp;
+	compute RESEARCH;
+	if RESEARCH^="" then do; call define("RESEARCH","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	title1 
+		c=black
+		h=16pt 
+		font="calibri" 
+		"&truthdeck";
+	title2 
+		c=black
+		h=14pt 
+		font="calibri" 
+		"Full Results: Truthdeck vs. Instrument Output";
+	title3 
+		c=black
+		h=10pt 
+		font="calibri" 
+		"Internet Data Collection (IDC) Instrument";
+run;
+quit;
+
+*Created curated results for IDC recon;
+data curated_output; set full_output;
+		if RECON="Match" then delete;
+		if RECON="Variable not present in Truthdeck" then delete;
+		drop _BREAK_;
+run;
+
+title1 ;
+title2 ;
+title3 ;
+*Report curated results for IDC recon;
+options orientation=landscape leftmargin=.25in rightmargin=.25in;
+ods pdf file="&resultslocation\'&truthdeck'_CURATED.pdf";
+
+proc report nowd
+	data=curated_output out=curated_output
+	style(header)=[background=#dfaaea fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID            / display center style(column)=[cellwidth=.7in];
+	define PNUM            / display center style(column)=[cellwidth=.5in];
+	define VARNAME         / display center style(column)=[cellwidth=1in];
+	define VALUE_TRUTHDECK / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_OUTPUT    / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_INFO      / display flow style(column)=[cellwidth=1.5in];
+	define RESEARCH        / display style(column)=[cellwidth=1.5in];
+	define RECON           / display style(column)=[cellwidth=2in];
+	compute RESEARCH;
+	if RESEARCH^="" then do; call define("CMID","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("PNUM","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VARNAME","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("RESEARCH","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	compute RECON;
+	if RESEARCH^="" then do; call define("RECON","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	title1 
+		c=black
+		h=16pt 
+		font="calibri" 
+		"&truthdeck";
+	title2 
+		c=black
+		h=14pt 
+		font="calibri" 
+		"Curated Results: Truthdeck vs. Instrument Output";
+	title3 
+		c=black
+		h=10pt 
+		font="calibri" 
+		"Internet Data Collection (IDC) Instrument";
+run;
+ods pdf close;
+quit;
+
+%end;
+%if %UPCASE(&blaise)=YES %then %do;
+
+*******************************************;
+*DATA VALIDATION CODE FOR BLAISE INSTRUMENT;
+*******************************************;
+
+*Import Data from Layfile;
+data layfile;
+	infile "&layfilelocation\&layfile" missover truncover;
+	input POSITION 3-8 LENGTH 13-15 LAYFILENAME $ 16-85;
+run;
+
+*Extracting VARNAME and PNUM from LAYFILENAME;
+data layfile; set layfile;
+	length 
+		SUBVARNAME_1 $200 SUBVARNAME_2 $200 SUBVARNAME_3 $200 SUBVARNAME_4 $200 SUBVARNAME_5 $200 SUBVARNAME_6 $200 SUBVARNAME_7 $200 SUBVARNAME_8 $200 SUBVARNAME_9 $200 SUBVARNAME_10 $200 SUBVARNAME_11 $200 SUBVARNAME_12 $200 SUBVARNAME_13 $200 SUBVARNAME_14 $200
+		SUBPNUM_1 $200. SUBPNUM_2 $200. SUBPNUM_3 $200. SUBPNUM_4 $200. SUBPNUM_5 $200. SUBPNUM_6 $200. SUBPNUM_7 $200. SUBPNUM_8 $200. SUBPNUM_9 $200.;
+	retain 
+		SUBVARNAME_1_ID SUBVARNAME_2_ID SUBVARNAME_3_ID SUBVARNAME_4_ID SUBVARNAME_5_ID SUBVARNAME_6_ID SUBVARNAME_7_ID SUBVARNAME_8_ID SUBVARNAME_9_ID SUBVARNAME_10_ID SUBVARNAME_11_ID SUBVARNAME_12_ID SUBVARNAME_13_ID SUBVARNAME_14_ID 
+		SUBPNUM_1_ID SUBPNUM_2_ID SUBPNUM_3_ID SUBPNUM_4_ID SUBPNUM_5_ID SUBPNUM_6_ID SUBPNUM_7_ID SUBPNUM_8_ID SUBPNUM_9_ID;
+	call prxdebug(0);
+	if _n_ = 1 then do;
+*SUBVARNAME;
+		SUBVARNAME_1_ID  = prxparse ("/^([\w]+)\s*$/");
+		SUBVARNAME_2_ID  = prxparse ("/^([\w]+)\[[\d]+\]\s*$/");
+		SUBVARNAME_3_ID  = prxparse ("/^[\w]+\.([\w]+)\s*$/");
+		SUBVARNAME_4_ID  = prxparse ("/^[\w]+\[[\d]+\]\.([\w]+)\s*$/");
+		SUBVARNAME_5_ID  = prxparse ("/^[\w]+\.([\w]+)\[[\d]+\]\s*$/");
+		SUBVARNAME_6_ID  = prxparse ("/^[\w]+\.[\w]+\.([\w]+)\s*$/");
+		SUBVARNAME_7_ID	 = prxparse ("/^[\w]+\.[\w]+\[\d*\]\.([\w]+)\s*$/");
+		SUBVARNAME_8_ID  = prxparse ("/^[\w]+\.[\w]+\.[\w]+\.([\w]+)\s*$/");
+		SUBVARNAME_9_ID  = prxparse ("/^[\w]+\.[\w]+\[\d*\]\.[\w]+\.([\w]+)\s*$/");
+		SUBVARNAME_10_ID = prxparse ("/^[\w]+\.[\w]+\.[\w]+\[\d*\]\.([\w]+)\s*$/");
+		SUBVARNAME_11_ID = prxparse ("/^[\w]+\[\d*\]\.[\w]+\[\d*\]\.([\w]+)\s*$/");
+		SUBVARNAME_12_ID = prxparse ("/^[\w]+\.[\w]+\[\d*\]\.([\w]+\[\d*\])\s*$/");
+		SUBVARNAME_13_ID = prxparse ("/^[\w]+\.[\w]+\[\d*\]\.[\w]+\.([\w]+\[\d*\])\s*$/");
+		SUBVARNAME_14_ID = prxparse ("/^[\w]+\.[\w]+\.[\w]+\.[\w]+\.[\w]+\.([\w]+)\s*$/");
+*SUBPNUM;
+		SUBPNUM_1_ID     = prxparse ("/^[\w]+\[(\d*)\]\s*$/");
+		SUBPNUM_2_ID     = prxparse ("/^[\w]+\[([\d]*)\]\.[\w]+\s*$/");
+		SUBPNUM_3_ID     = prxparse ("/^[\w]+\.[\w]+\[(\d*)\]\s*$/");
+		SUBPNUM_4_ID     = prxparse ("/^[\w]+\.[\w]+\[(\d*)\]\.[\w]*\s*$/");
+		SUBPNUM_5_ID     = prxparse ("/^[\w]+\.[\w]+\[(\d*)\]\.[\w]+\.[\w]+\s*$/");
+		SUBPNUM_6_ID     = prxparse ("/^[\w]+\.[\w]+\.[\w]+\[(\d*)\]\.[\w]+\s*$/");
+		SUBPNUM_7_ID 	 = prxparse ("/^[\w]+\[\d*\]\.[\w]+\[(\d*)\]\.[\w]+\s*$/");
+		SUBPNUM_8_ID     = prxparse ("/^[\w]+\.[\w]+\[(\d*)\]\.[\w]+\[\d*\]\s*$/");
+		SUBPNUM_9_ID	 = prxparse ("/^[\w]+\.[\w]+\[(\d*)\]\.[\w]+\.[\w]+\[\d*\]\s*$/");
+	end;
+/*
+PRXPARSE ID DEFINITIONS:
+
+The following ID's identify VARNAME from the following naming conventions--
+
+SUBVARNAME_1_ID  : VARNAME
+SUBVARNAME_2_ID  : VARNAME[01]
+SUBVARNAME_3_ID  : WORD.VARNAME
+SUBVARNAME_4_ID  : WORD[01].VARNAME
+SUBVARNAME_5_ID	 : WORD.VARNAME[01]
+SUBVARNAME_6_ID  : WORD.WORD.VARNAME
+SUBVARNAME_7_ID  : WORD.WORD[01].VARNAME
+SUBVARNAME_8_ID  : WORD.WORD.WORD.VARNAME                 
+SUBVARNAME_9_ID	 : WORD.WORD[01].WORD.VARNAME
+SUBVARNAME_10_ID : WORD.WORD.WORD[01].VARNAME
+SUBVARNAME_11_ID : WORD[99].WORD[01].VARNAME
+SUBVARNAME_12_ID : WORD.WORD[01].VARNAME[99]           *****CAPTURES ARRAY NUMBER (99)*****
+SUBVARNAME_13_ID : WORD.WORD[01].WORD.VARNAME[99]      *****CAPTURES ARRAY NUMBER (99)*****
+SUBVARNAME_14_ID : WORD.WORD.WORD.WORD.WORD.VARNAME
+
+The following ID's identify PNUM (01) from the following naming conventions--
+
+SUBPNUM_1_ID     : VARNAME[01]
+SUBPNUM_2_ID     : WORD[01].VARNAME
+SUBPNUM_3_ID     : WORD.VARNAME[01]
+SUBPNUM_4_ID     : WORD.WORD[01].VARNAME
+SUBPNUM_5_ID     : WORD.WORD[01].WORD.VARNAME
+SUBPNUM_6_ID     : WORD.WORD.WORD[01].VARNAME
+SUBPNUM_7_ID     : WORD[99].WORD[01].VARNAME
+SUBPNUM_8_ID     : WORD.WORD[01].VARNAME[99]
+SUBPNUM_9_ID	 : WORD.WORD[01].WORD.VARNAME[99]
+*/
+put LAYFILENAME;
+	if prxmatch(SUBVARNAME_1_ID, LAYFILENAME) then do; 
+		SUBVARNAME_1 = prxposn(SUBVARNAME_1_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_2_ID, LAYFILENAME) then do; 
+		SUBVARNAME_2 = prxposn(SUBVARNAME_2_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_3_ID, LAYFILENAME) then do; 
+		SUBVARNAME_3 = prxposn(SUBVARNAME_3_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_4_ID, LAYFILENAME) then do; 
+		SUBVARNAME_4 = prxposn(SUBVARNAME_4_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_5_ID, LAYFILENAME) then do; 
+		SUBVARNAME_5 = prxposn(SUBVARNAME_5_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_6_ID, LAYFILENAME) then do; 
+		SUBVARNAME_6 = prxposn(SUBVARNAME_6_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_7_ID, LAYFILENAME) then do; 
+		SUBVARNAME_7 = prxposn(SUBVARNAME_7_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_8_ID, LAYFILENAME) then do; 
+		SUBVARNAME_8 = prxposn(SUBVARNAME_8_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_9_ID, LAYFILENAME) then do; 
+		SUBVARNAME_9 = prxposn(SUBVARNAME_9_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_10_ID, LAYFILENAME) then do; 
+		SUBVARNAME_10 = prxposn(SUBVARNAME_10_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_11_ID, LAYFILENAME) then do; 
+		SUBVARNAME_11 = prxposn(SUBVARNAME_11_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_12_ID, LAYFILENAME) then do; 
+		SUBVARNAME_12 = prxposn(SUBVARNAME_12_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_13_ID, LAYFILENAME) then do; 
+		SUBVARNAME_13 = prxposn(SUBVARNAME_13_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBVARNAME_14_ID, LAYFILENAME) then do; 
+		SUBVARNAME_14 = prxposn(SUBVARNAME_14_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_1_ID, LAYFILENAME) then do; 
+		SUBPNUM_1 = prxposn(SUBPNUM_1_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_2_ID, LAYFILENAME) then do; 
+		SUBPNUM_2 = prxposn(SUBPNUM_2_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_3_ID, LAYFILENAME) then do; 
+		SUBPNUM_3 = prxposn(SUBPNUM_3_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_4_ID, LAYFILENAME) then do; 
+		SUBPNUM_4 = prxposn(SUBPNUM_4_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_5_ID, LAYFILENAME) then do; 
+		SUBPNUM_5 = prxposn(SUBPNUM_5_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_6_ID, LAYFILENAME) then do; 
+		SUBPNUM_6 = prxposn(SUBPNUM_6_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_7_ID, LAYFILENAME) then do; 
+		SUBPNUM_7= prxposn(SUBPNUM_7_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_8_ID, LAYFILENAME) then do; 
+		SUBPNUM_8= prxposn(SUBPNUM_8_ID,1,LAYFILENAME);
+	end;
+	if prxmatch(SUBPNUM_9_ID, LAYFILENAME) then do; 
+		SUBPNUM_9= prxposn(SUBPNUM_9_ID,1,LAYFILENAME);
+	end;
+	drop 
+		SUBVARNAME_1_ID SUBVARNAME_2_ID SUBVARNAME_3_ID SUBVARNAME_4_ID SUBVARNAME_5_ID SUBVARNAME_6_ID SUBVARNAME_7_ID SUBVARNAME_8_ID SUBVARNAME_9_ID SUBVARNAME_10_ID SUBVARNAME_11_ID SUBVARNAME_12_ID SUBVARNAME_13_ID SUBVARNAME_14_ID
+		SUBPNUM_1_ID SUBPNUM_2_ID SUBPNUM_3_ID SUBPNUM_4_ID SUBPNUM_5_ID SUBPNUM_6_ID SUBPNUM_7_ID SUBPNUM_8_ID SUBPNUM_9_ID;
+run;
+
+*Coalesce VARNAME and PNUM;
+data layfile; set layfile;
+	VARNAME=SUBVARNAME_1;
+		if VARNAME="" then VARNAME=SUBVARNAME_2;
+		if VARNAME="" then VARNAME=SUBVARNAME_3;
+		if VARNAME="" then VARNAME=SUBVARNAME_4;
+		if VARNAME="" then VARNAME=SUBVARNAME_5;
+		if VARNAME="" then VARNAME=SUBVARNAME_6;
+		if VARNAME="" then VARNAME=SUBVARNAME_7;
+		if VARNAME="" then VARNAME=SUBVARNAME_8;
+		if VARNAME="" then VARNAME=SUBVARNAME_9;
+		if VARNAME="" then VARNAME=SUBVARNAME_10;
+		if VARNAME="" then VARNAME=SUBVARNAME_11;
+		if VARNAME="" then VARNAME=SUBVARNAME_12;
+		if VARNAME="" then VARNAME=SUBVARNAME_13;
+		if VARNAME="" then VARNAME=SUBVARNAME_14;
+	PNUM_STRING=SUBPNUM_1;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_2;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_3;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_4;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_5;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_6;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_7;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_8;
+		if PNUM_STRING="" then PNUM_STRING=SUBPNUM_9;
+		if PNUM_STRING="" then PNUM_STRING="0";
+		if LENGTH=0 then delete;
+	    if VARNAME="" then delete;
+drop
+	SUBVARNAME_1 SUBVARNAME_2 SUBVARNAME_3 SUBVARNAME_4 SUBVARNAME_5 SUBVARNAME_6 SUBVARNAME_7 SUBVARNAME_8 SUBVARNAME_9 SUBVARNAME_10 SUBVARNAME_11 SUBVARNAME_12 SUBVARNAME_13 SUBVARNAME_14
+	SUBPNUM_1 SUBPNUM_2 SUBPNUM_3 SUBPNUM_4 SUBPNUM_5 SUBPNUM_6 SUBPNUM_7 SUBPNUM_8 SUBPNUM_9;
+run;
+
+*Format PNUM as numerical value;
+data layfile; set layfile;
+	format PNUM best20.;
+	PNUM=PNUM_STRING;
+	drop PNUM_STRING;
+run;
+
+*Seperate array elements;
+data layfile; set layfile;
+	length ARRAYNAME $200 ARRAYNUM $200;
+	retain ARRAYNAME_ID ARRAYNUM_ID;
+	call prxdebug(0);
+	if _n_ = 1 then do;
+		ARRAYNAME_ID = prxparse("/^([\w]+)/");
+		ARRAYNUM_ID = prxparse("/^[\w]+\[([\d]+)\]\s*$/");
+	end;
+/*
+PRXPARSE ID DEFINITIONS:
+
+The following ID's identify VARNAME from the following naming conventions--
+
+ARRAYNAME           : VARNAME & VARNAME[99]
+
+The following ID's identify ARRAYNUM [01] from the following naming conventions--
+
+ARRAYNUM            : VARNAME[99]
+*/
+put VARNAME;
+	if prxmatch(ARRAYNAME_ID, VARNAME) then do; 
+		ARRAYNAME = prxposn(ARRAYNAME_ID,1,VARNAME);
+	end;
+	if prxmatch(ARRAYNUM_ID, VARNAME) then do; 
+		ARRAYNUM = prxposn(ARRAYNUM_ID,1,VARNAME);
+end;
+drop ARRAYNAME_ID ARRAYNUM_ID;
+run;
+
+*Set array numbers as part of VARNAME;
+data layfile; set layfile;
+	UNDERSCORE="_";
+	VARNAME=catx('', of ARRAYNAME UNDERSCORE ARRAYNUM);
+	VARNAME=compress(VARNAME);
+	drop ARRAYNAME ARRAYNUM;
+run;
+
+*Setup input statement in layfile;
+data layfile; set layfile;
+	AT="@";
+	CHARACTER="$char";
+	PERIOD=".";
+	INPUT=catx('', of AT POSITION); 
+	INPUT=compress(INPUT);
+	VARNAME_ARRAYNUM_PNUM=catx('', of VARNAME UNDERSCORE PNUM);
+	VARNAME_ARRAYNUM_PNUM=compress(VARNAME_ARRAYNUM_PNUM);
+	INPUT=catx('', of INPUT VARNAME_ARRAYNUM_PNUM);
+	INPUT2=catx('', of CHARACTER LENGTH PERIOD);
+	INPUT2=compress(INPUT2);
+	INPUT=catx('', of INPUT INPUT2);
+	INPUT=catx('', of INPUT);
+	drop AT CHARACTER UNDERSCORE PERIOD INPUT2;
+run;
+
+proc sql noprint;
+select max(POSITION) + 10
+into:POSITION from layfile;
+quit;
+
+*Establish layfile observations as a macro;
+*Macro processing is required to exceed 64k character limitation;
+%macro input_macro;
+	%let dsid=%sysfunc(open(layfile));                                                                                                         
+	%let cnt=%sysfunc(attrn(&dsid,nobs));
+	%do i=1 %to &cnt;
+	%let rc=%sysfunc(fetchobs(&dsid,&i));
+	%cmpres(%sysfunc(getvarc(&dsid,%sysfunc(varnum(&dsid,INPUT)))))
+	%end;
+	%let rc=%sysfunc(close(&dsid));                                                                                                        
+%mend input_macro;
+
+*Import Data from Output File;
+data output_sas;
+	infile "&outputlocation\&output" missover truncover lrecl=&position;
+	input %input_macro;
+run;
+
+proc sort data=output_sas out=output_sas;
+	by CASEID__0;
+run;
+
+*Transpose Data by CASEID;
+proc transpose
+	data=output_sas out=output_sas;
+	by CASEID__0; var _all_;
+run;
+
+*Clean up variable names;
+data output_sas; set output_sas;
+	CASEID=CASEID__0;
+	VALUE_OUTPUT=COL1;
+	VARNAME_ARRAYNUM_PNUM=_NAME_;
+	drop COL1 CASEID__0 _NAME_;
+run;
+
+*Identify VARNAME and PNUM from VARNAME_ARRAYNUM_PNUM;
+data output_sas; set output_sas;
+	length VARNAME1 $200 VARNAME2 $200 PNUM 8;
+	retain VARNAME1_ID VARNAME2_ID PNUM_ID;
+	call prxdebug(0);
+	if _n_ = 1 then do;
+		VARNAME1_ID = prxparse("/^([\w]+)__[\d]+\s*$/");
+		VARNAME2_ID =prxparse("/^([\w]+)_[\d]_[\d]+\s*$/"); 
+		PNUM_ID = prxparse("/([\d]*)\s*$/");
+	end;
+/*
+PRXPARSE ID DEFINITIONS:
+
+The following ID's identify VARNAME from the following naming conventions--
+
+VARNAME_ID   : VARNAME_PNUM
+VARNAME_ID2	 : VARNAME_ARRAYNUM_PNUM 
+
+The following ID's identify PNUM from the following naming conventions--
+
+PNUM_ID      : VARNAME_PNUM
+*/
+put VARNAME_ARRAYNUM_PNUM;
+	if prxmatch(VARNAME1_ID, VARNAME_ARRAYNUM_PNUM) then do; 
+		VARNAME1 = prxposn(VARNAME1_ID,1,VARNAME_ARRAYNUM_PNUM);
+	end;
+	if prxmatch(VARNAME2_ID, VARNAME_ARRAYNUM_PNUM) then do; 
+		VARNAME2 = prxposn(VARNAME2_ID,1,VARNAME_ARRAYNUM_PNUM);
+	end;
+	if prxmatch(PNUM_ID, VARNAME_ARRAYNUM_PNUM) then do; 
+		 PNUM = prxposn(PNUM_ID,1,VARNAME_ARRAYNUM_PNUM);
+	end;
+	drop VARNAME1_ID VARNAME2_ID PNUM_ID;
+run;
+
+*Coalesce VARNAME and PNUM;
+data output_sas; set output_sas;
+	VARNAME=VARNAME1;
+	if VARNAME="" then VARNAME=VARNAME2;
+	drop VARNAME1 VARNAME2 VARNAME_ARRAYNUM_PNUM;
+run;
+
+*Sort TQA/FEFU Truthdeck and Output Datasets for Merge;
+proc sort data=truthdeck_sas out=truthdeck_sas;
+	by CASEID PNUM VARNAME;
+run;
+
+proc sort data=output_sas out=output_sas;
+	by CASEID PNUM VARNAME VALUE_OUTPUT;
+run;
+
+proc transpose data=output_sas out=output_sas prefix=output_; 
+	by CASEID PNUM VARNAME; 
+	var VALUE_OUTPUT;
+run;
+
+data output_sas; set output_sas; 
+	length VALUE_OUTPUT $600.; 
+	VALUE_OUTPUT=catx(', ', of output_:); 
+run;
+
+data output_sas; set output_sas;
+	keep CASEID PNUM VARNAME VALUE_OUTPUT;
+	drop else;
+run;
+
+*Merge Truthdeck and Output Datasets for Comparison;
+data full_output;
+	merge truthdeck_sas output_sas;
+	by CASEID PNUM VARNAME; 
+run;
+
+*Format & create string variables;
+data full_output; set full_output;
+	format RECON $45.;
+	if VALUE_TRUTHDECK=VALUE_OUTPUT then RECON="Match";
+	if VALUE_TRUTHDECK^=VALUE_OUTPUT then RECON="Value mismatch";
+	if VALUE_TRUTHDECK="" then RECON="Variable not present in Truthdeck";
+	if VALUE_OUTPUT="" then RECON="Variable not present in Output";
+	if VALUE_OUTPUT="" & VALUE_TRUTHDECK="" then delete;
+run;
+
+*Reorder Variables;
+data full_output;
+   retain CASEID PNUM VARNAME VALUE_TRUTHDECK VALUE_OUTPUT VALUE_INFO RESEARCH RECON;
+   set full_output;
+run;
+
+proc sort data=full_output out=full_output;
+	by CASEID PNUM;
+run;
+
+title1 ;
+title2 ;
+title3 ;
+*Report full results for TQA/FEFU recon;
+options orientation=landscape leftmargin=.25in rightmargin=.25in;
+ods pdf file="&resultslocation\'&truthdeck'_FULL.pdf";
+
+proc report nowd
+	data=full_output out=full_output
+	style(header)=[background=#dfaaea fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CASEID          / display center style(column)=[cellwidth=.7in];
+	define PNUM            / display center style(column)=[cellwidth=.5in];
+	define VARNAME         / display center style(column)=[cellwidth=1in];
+	define VALUE_TRUTHDECK / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_OUTPUT    / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_INFO      / display flow style(column)=[cellwidth=1.5in];
+	define RESEARCH        / display style(column)=[cellwidth=1.5in];
+	define RECON           / display style(column)=[cellwidth=2in];
+	compute RECON;
+*CASEID;
+		if RECON="Value mismatch" then do; call define("CASEID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("CASEID","STYLE","STYLE=[background=#ffc4c4]"); end;
+*PNUM;
+		if RECON="Value mismatch" then do; call define("PNUM","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("PNUM","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VARNAME;
+		if RECON="Value mismatch" then do; call define("VARNAME","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VARNAME","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_TRUTHDECK;
+		if RECON="Value mismatch" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_OUTPUT;
+		if RECON="Value mismatch" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#ffc4c4]"); end;
+*VALUE_INFO;
+		if RECON="Value mismatch" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#ffc4c4]"); end;
+*RESEARCH;
+		if RECON="Value mismatch" & RESEARCH="" then do; call define("RESEARCH","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Output" & RESEARCH="" then do; call define("RESEARCH","STYLE","STYLE=[background=#ffc4c4]"); end;
+*RECON;
+		if RECON="Match" then do; call define("RECON","STYLE","STYLE=[background=#e2ffe2]"); end;
+		if RECON="Value mismatch" then do; call define("RECON","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if RECON="Variable not present in Truthdeck" then do; call define("RECON","STYLE","STYLE=[background=#cce0ff]"); end;
+		if RECON="Variable not present in Output" then do; call define("RECON","STYLE","STYLE=[background=#ffc4c4]"); end;
+	endcomp;
+	compute RESEARCH;
+	if RESEARCH^="" then do; call define("RESEARCH","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	title1 
+		c=black
+		h=16pt 
+		font="calibri" 
+		"&truthdeck";
+	title2 
+		c=black
+		h=14pt 
+		font="calibri" 
+		"Full Results: Truthdeck vs. Instrument Output";
+	title3 
+		c=black
+		h=10pt 
+		font="calibri" 
+		"Telephone Questionnaire Assistance (TQA)/Failed Edit Follow Up (FEFU) Instrument";
+run;
+quit;
+
+*Created curated results for TQA/FEFU recon;
+data curated_output; set full_output;
+		if RECON="Match" then delete;
+		if RECON="Variable not present in Truthdeck" then delete;
+		drop _BREAK_;
+run;
+
+title1 ;
+title2 ;
+title3 ;
+*Report curated results for TQA/FEFU recon;
+options orientation=landscape leftmargin=.25in rightmargin=.25in;
+ods pdf file="&resultslocation\'&truthdeck'_CURATED.pdf";
+
+proc report nowd
+	data=curated_output out=curated_output
+	style(header)=[background=#dfaaea fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CASEID          / display center style(column)=[cellwidth=.7in];
+	define PNUM            / display center style(column)=[cellwidth=.5in];
+	define VARNAME         / display center style(column)=[cellwidth=1in];
+	define VALUE_TRUTHDECK / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_OUTPUT    / display center flow style(column)=[cellwidth=1.5in];
+	define VALUE_INFO      / display flow style(column)=[cellwidth=1.5in];
+	define RESEARCH        / display style(column)=[cellwidth=1.5in];
+	define RECON           / display style(column)=[cellwidth=2in];
+	compute RESEARCH;
+	if RESEARCH^="" then do; call define("CASEID","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("PNUM","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VARNAME","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_TRUTHDECK","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_OUTPUT","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("VALUE_INFO","STYLE","STYLE=[background=#fdff9c]"); end;
+	if RESEARCH^="" then do; call define("RESEARCH","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	compute RECON;
+	if RESEARCH^="" then do; call define("RECON","STYLE","STYLE=[background=#fdff9c]"); end;
+	endcomp;
+	title1 
+		c=black
+		h=16pt 
+		font="calibri" 
+		"&truthdeck";
+	title2 
+		c=black
+		h=14pt 
+		font="calibri" 
+		"Curated Results: Truthdeck vs. Instrument Output";
+	title3 
+		c=black
+		h=10pt 
+		font="calibri" 
+		"Telephone Questionnaire Assistance (TQA)/Failed Edit Follow Up (FEFU) Instrument";
+run;
+ods pdf close;
+quit;
+
+*Close macro;
+%end;
+%Mend Instrument;
+%Instrument;
