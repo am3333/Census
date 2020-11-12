@@ -1,0 +1,319 @@
+*FEFU Monitoring Program   ;
+*Last Updated: 23 June 2020;
+
+*SPECIFY THE MINIMUM CUTOFF DATE - DDMMMYYYY;
+%let minimum   = 01Jan2020;
+
+*SPECIFY THE MAXIMUM CUTOFF DATE - DDMMMYYYY;
+%let maximum   = 19Mar2020;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*PROGRAM HEADINGS   																								      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+title ; 
+proc odstext;
+p "FEFU Monitoring Program" / style=[fontstyle=italic fontweight=bold fontsize=20pt fontfamily="calibri" textdecoration=underline];
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*UNIVERSAL GRAPH SETTINGS   																								      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+ods graphics on / width=800px;
+ods graphics on / height=600px;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*Reasons Data    																							              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+proc import out=reasons
+	datafile="FEFU Monitoring Log"
+	dbms=xlsx replace;
+	sheet="Reasons";
+	getnames=yes;
+run;
+
+data reasons; set reasons;
+	if DATE<"&minimum"d then delete;
+	if DATE>"&maximum"d then delete;
+	drop TFU_1 TFU_2 TFU_3 TFU_4 TFU_5;
+run;
+
+proc transpose data=reasons out=reasons; 
+	by DATE; 
+run;
+
+data reasons; set reasons;
+	REASON=_NAME_;
+	COUNT=COL1;
+	drop _NAME_ _LABEL_ COL1;
+run;
+
+proc sort data=reasons out=reasons;
+	by REASON;
+run;
+
+proc sql; create table reasons as
+  select REASON, sum(COUNT) as COUNT
+  from reasons
+  group by REASON;
+quit;
+
+proc sql noprint;
+	select sum(COUNT) into:total from reasons;
+quit;
+
+data reasons; set reasons;
+	format PERCENT percent8.2;
+	PERCENT=COUNT/&total;
+run;
+
+proc odstext;
+p "Reasons for Case Referral to FEFU" / style=[fontweight=bold fontsize=14pt fontfamily="calibri"];
+p "Specified Date Range: &minimum - &maximum" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+ods layout gridded columns=2;
+ods region;
+proc gchart data=reasons;
+	pie REASON/ 
+		type=sum 
+		sumvar=COUNT
+		noheader
+		slice=arrow
+		percent=arrow
+		other=3
+		radius=35
+		Legend=true;
+run;
+quit;
+
+ods region;
+proc report
+	data=reasons out=reasons
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+run;
+ods layout end;
+
+proc odstext;
+p "TFU_A: Reported persons (RPER) is greater than 5 and number of person records (NPER) less than or equal to 5. There are person information reports for Persons 6 through 12." / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_B: Reported persons (RPER) is greater than 5 and number of person records (NPER) less than or equal to 5 and TFU_A not true."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_C: Two or more critical housing failures."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_D: Two moderate housing failures."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_E: More than ten low housing failures." / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_F: Two or more critical population failures."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_G: A one person household that presents two or more critical population failures."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_H: A two or more person household that presents more than three moderate population variables."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_I: One critical housing failure and one critical population failure."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "TFU_J: Address has been identified as vacant/temporarily occupied and/or a business."/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*RPER Data               								      												              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+proc import out=rper
+	datafile="FEFU Monitoring Log"
+	dbms=xlsx replace;
+	sheet="RPER";
+	getnames=yes;
+run;
+
+data rper; set rper;
+	if DATE<"&minimum"d then delete;
+	if DATE>"&maximum"d then delete;
+run;
+
+proc transpose data=rper out=rper; 
+	by DATE; 
+run;
+
+proc format;
+	value RPER_CODE
+		1="Blank"
+		2="0"
+		3="1"
+		4="2"
+		5="3"
+		6="4"
+		7="5"
+		8="6"
+		9="7"
+		10="8"
+		11="9"
+		12="10"
+		13="11"
+		14="12"
+		15="13"
+		16="14"
+		17="15"
+		18="16"
+		19="17"
+		20="18"
+		21="19"
+		22="20"
+		23=">=21"
+;
+run;
+
+data rper; set rper;
+	format RPER RPER_CODE.;
+	if _NAME_="Blank" then RPER=1;
+	if _NAME_="_0"    then RPER=2;
+	if _NAME_="_1"    then RPER=3;
+	if _NAME_="_2"    then RPER=4;
+	if _NAME_="_3"    then RPER=5;
+	if _NAME_="_4"    then RPER=6;
+	if _NAME_="_5"    then RPER=7;
+	if _NAME_="_6"    then RPER=8;
+	if _NAME_="_7"    then RPER=9;
+	if _NAME_="_8"    then RPER=10;
+	if _NAME_="_9"    then RPER=11;
+	if _NAME_="_10"   then RPER=12;
+	if _NAME_="_11"   then RPER=13;
+	if _NAME_="_12"   then RPER=14;
+	if _NAME_="_13"   then RPER=15;
+	if _NAME_="_14"   then RPER=16;
+	if _NAME_="_15"   then RPER=17;
+	if _NAME_="_16"   then RPER=18;
+	if _NAME_="_17"   then RPER=19;
+	if _NAME_="_18"   then RPER=20;
+	if _NAME_="_19"   then RPER=21;
+	if _NAME_="_20"   then RPER=22;
+	if _NAME_="__21"  then RPER=23;
+	COUNT=COL1;
+	drop _NAME_ _LABEL_ COL1;
+run;
+
+proc sort data=rper out=rper;
+	by RPER;
+run;
+
+proc sql; create table rper as
+  select RPER, sum(COUNT) as COUNT
+  from rper
+  group by RPER;
+quit;
+
+proc sql noprint;
+	select sum(COUNT) into:total from rper;
+quit;
+
+data rper; set rper;
+	format PERCENT percent8.2;
+	PERCENT=COUNT/&total;
+run;
+
+proc odstext;
+p "Distribution of Household Size on Cases Deferred to FEFU" / style=[fontweight=bold fontsize=14pt fontfamily="calibri"];
+p "Specified Date Range: &minimum - &maximum" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+
+ods layout gridded columns=2;
+ods region;
+proc sgplot data=rper;
+	vbar RPER / response=COUNT stat=mean nostatlabel;
+	xaxis 
+		label="Household Size"
+		labelattrs=(family="calibri" size=10pt weight=bold)
+		valueattrs=(family="calibri" size=10pt);
+	yaxis
+		label="Quantity"
+		labelattrs=(family="calibri" size=10pt weight=bold)
+		valueattrs=(family="calibri" size=10pt);
+run;
+quit;
+
+ods region;
+proc report
+	data=rper out=rper
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+column RPER COUNT PERCENT;
+define RPER / display "RPER" missing order=formatted;
+endcomp;
+run;
+quit;
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*Mail vs. Internet Data   								      												              ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+proc import out=mailvinternet
+	datafile="FEFU Monitoring Log"
+	dbms=xlsx replace;
+	sheet="Mail vs. Internet";
+	getnames=yes;
+run;
+
+data mailvinternet; set mailvinternet;
+	if DATE<"&minimum"d then delete;
+	if DATE>"&maximum"d then delete;
+run;
+
+proc transpose data=mailvinternet out=mailvinternet; 
+	var Mail Internet;
+	by DATE;
+run;
+
+data mailvinternet; set mailvinternet;
+	format COUNT best8.;
+	MODE=_NAME_;
+	COUNT=COL1;
+	drop _NAME_ _LABEL_ COL1;
+run;
+
+proc sort data=mailvinternet out=mailvinternet;
+	by MODE;
+run;
+
+proc sql; create table mailvinternet as
+  select MODE, sum(COUNT) as COUNT
+  from mailvinternet
+  group by MODE;
+quit;
+
+proc sql noprint;
+	select sum(COUNT) into:total from mailvinternet;
+quit;
+
+data mailvinternet; set mailvinternet;
+	format PERCENT percent8.2;
+	PERCENT=COUNT/&total;
+run;
+
+proc odstext;
+p "Case Referral to FEFU by ACS Mode" / style=[fontweight=bold fontsize=14pt fontfamily="calibri"];
+p "Specified Date Range: &minimum - &maximum" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+ods layout gridded columns=2;
+ods region;
+proc gchart data=mailvinternet;
+	pie MODE/ 
+		type=sum 
+		sumvar=COUNT
+		noheader
+		slice=arrow
+		percent=arrow
+		radius=35
+		Legend=true;
+run;
+quit;
+
+ods region;
+proc report
+	data=mailvinternet out=mailvinternet
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+run;
+ods layout end;
