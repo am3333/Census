@@ -1,0 +1,1784 @@
+*Label Review Program Ver. 2.4;
+*Last Updated: 13 October 2020;
+
+*SPECIFY YOUR LABEL FILE;
+%let labelfile = prm3_2010;
+
+**************************************************************************************************************************;
+*IF YOU'RE REVIEWING M2, OR M3 LABELFILES, COMPLETE THE FOLLOWING:
+**************************************************************************************************************************;
+
+*SPECIFY THE TOTAL M1 COUNTS FOR THIS PANEL;
+%let total_workload = 2001;
+
+*SPECIFY THE PERCENT OF TOTAL FOR THIS MAIL FILE LAST MONTH;
+%let last_month = 71.7;
+
+*SPECIFY THE PERCENT OF TOTAL FOR THIS MAIL FILE LAST YEAR;
+%let last_year = 64;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*INTERNAL MACROS																									      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+%let audience=%scan(&labelfile,1,[m]);
+%let panel=%scan(&labelfile,2,[_]);
+%let year=%substr(&panel,1,2);
+%let panel2=%substr(&panel,3,2);
+%let mnumber=%substr(&labelfile,3,2);
+%let language= ;
+%let survcode= ;
+%let mailstrat= ;
+%let inetelig= ;
+%let mailing= ;
+%let city= ;
+%let blankctrlnumtitle2= ;
+%let blankmailftitle2= ;
+
+%Macro InternalMacros;
+%if &audience=hu %then %let mnumber=%scan(&labelfile,2,[u _]);
+%if &audience=pr %then %let mnumber=%scan(&labelfile,2,[r _]);
+%if &mnumber^=m1 & &mnumber^=m2e & &mnumber^=m2s & &mnumber^=m3e & &mnumber^=m3s & &mnumber^=m3 %then %let city=%scan(&mnumber,2,[4]);
+%if &mnumber^=m1 & &mnumber^=m2e & &mnumber^=m2s & &mnumber^=m3e & &mnumber^=m3s & &mnumber^=m3 & &mnumber^=id %then %let mnumber=m4;
+%if &mnumber=m1  & &audience=hu %then %let language=e;
+%if &mnumber=m1  & &audience=pr %then %let language=s;
+%if &mnumber=m2e | &mnumber=m3e %then %let language=e;
+%if &mnumber=m2s | &mnumber=m3s | &mnumber=m3 %then %let language=s;
+%if &mnumber=m4 %then %let language=e;
+%if &audience=hu & &language=e %then %let survcode = 111;
+%if &audience=hu & &language=s %then %let survcode = 112;
+%if &audience=pr & &language=e %then %let survcode = 121;
+%if &audience=pr & &language=s %then %let survcode = 122;
+%if &audience=hu %then %let mailstrat = 2;
+%if &audience=pr %then %let mailstrat = 1; 
+%if &audience=hu %then %let inetelig = 1;
+%if &audience=pr %then %let inetelig = 0; 
+%if &mnumber=m1 %then %let mailing=01;
+%if &mnumber=m2e | &mnumber=m2s %then %let mailing=02;
+%if &mnumber=m3e | &mnumber=m3s | &mnumber=m3 %then %let mailing=06;
+%if &mnumber=m4 %then %let mailing=08;
+%if &city=atl %then %let city=Atlanta;
+%if &city=chi %then %let city=Chicago;
+%if &city=den %then %let city=Denver;
+%if &city=las %then %let city=Los Angeles;
+%if &city=nyc %then %let city=New York;
+%if &city=phl %then %let city=Philadelphia;
+%Mend InternalMacros;
+%InternalMacros;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*INPUT STATEMENT																									      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+%Macro inputstatement;
+%if &audience=hu & &mnumber^=m4 %then %do;
+data labelfile;
+	infile "P:\adp9\transfr2\labels\&labelfile..lab" lrecl=160 missover truncover;
+	input CMID $ 1-9 MAILING $ 10-11 SURVCODE $ 12-14 PANEL $ 15-18 INETELIG $ 19 CHKDGT 20 APT $ 21-64 
+			ADDR1 $ 65-108 CITY $ 109-136 STATE $ 137-138 ZIP $ 139-143 ZIP4 $ 144-147 MAILSTRAT $ 148 
+			INETUSERID $ 149-158 MPGRP 159-160;
+run;
+%end;
+%if &mnumber=id %then %do;
+data labelfile;
+	infile "P:\adp9\transfr2\labels\&labelfile..lab" lrecl=162 missover truncover;
+	input CMID $ 1-9 MAILING $ 10-11 SURVCODE $ 12-14 PANEL $ 15-18 INETELIG $ 19 CHKDGT 20 APT $ 21-64 
+			ADDR1 $ 65-108 CITY $ 109-136 STATE $ 137-138 ZIP $ 139-143 ZIP4 $ 144-147 MAILSTRAT $ 148 
+			INETUSERID $ 149-158 MPGRP 159-160 MAILF $ 161 SPDCP 162;
+run;
+%end;
+%if &audience=hu & &mnumber=m4 %then %do;
+data labelfile;
+	infile "P:\adp9\transfr2\labels\&labelfile..lab" lrecl=180 missover truncover;
+	input CMID $ 1-9 MAILING $ 10-11 SURVCODE $ 12-14 PANEL $ 15-18 INETELIG $ 19 CHKDGT 20 APT $ 21-64 
+			ADDR1 $ 65-108 CITY $ 109-136 STATE $ 137-138 ZIP $ 139-143 ZIP4 $ 144-147 MAILSTRAT $ 148 
+			INETUSERID $ 149-158 MPGRP 159-160 CTRLNUM $ 161-180;
+run;
+%end;
+%if &audience=pr %then %do;
+data labelfile;
+	infile "P:\adp9\transfr2\labels\&labelfile..lab" lrecl=192 missover truncover;
+	input CMID $ 1-9 MAILING $ 10-11 SURVCODE $ 12-14 PANEL $ 15-18 INETELIG $ 19 CHKDGT 20 APT $ 21-80 
+			ADDR1 $ 81-140 CITY $ 141-168 STATE $ 169-170 ZIP $ 171-175 ZIP4 $ 176-179 MAILSTRAT $ 180
+			INETUSERID $ 181-190 MPGRP $191-192;
+%end;
+%Mend inputstatement;
+%inputstatement;
+
+ods html path ="J:\acsops1\Mail\Label review\Results\" (url=none)
+		 gpath="J:\acsops1\Mail\Label review\Results\Graphs"
+         file="&labelfile..html";
+		 
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*PRINT LABELFILE INFORMATION BASED ON LABELFILE NAME		 														      ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+title ;
+proc odstext;
+p "Label Review Ver. 2.4" / style=[fontstyle=italic fontweight=bold fontsize=20pt fontfamily="calibri" textdecoration=underline];
+%Macro Headings;
+%if &audience=hu & &mnumber=m1 %then %do; p "1st and 2nd Mailing: Initial Mailout Package & Reminder Letter" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &audience=pr & &mnumber=m1 %then %do; p "1st and 2nd Mailing: Prenotice Letter & Initial Mailout Package" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &audience=hu & &mnumber=m2e | &audience=hu & &mnumber=m2s %then %do; p "3rd and 4th Mailing: Replacement Mailout Package & Reminder Postcard" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &audience=pr & &mnumber=m2s | &audience=pr & &mnumber=m2e %then %do; p "3rd and 4th Mailing: Reminder Card & Replacement Mailout Package" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &mnumber=m3 | &mnumber=m3e | &mnumber=m3s %then %do; p "5th Mailing: Additional Mailing Postcard" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &mnumber=m4 %then %do; p "6th Mailing: CAPI Internet Letter" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &mnumber=id %then %do; p "IDC Input File" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &audience=hu | &mnumber=id %then %do; p "Audience: Stateside" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &audience=pr %then %do; p "Audience: Puerto Rico" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &mnumber=id %then %do; p "Language: User-set" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &language=e %then %do; p "Language: English" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%if &language=s %then %do; p "Language: Spanish" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+p "Panel: &panel2 / Year: 20&year" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"];
+%if &mnumber=m4 %then %do; p "Regional Office: &City" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"]; %end;
+%Mend Headings;
+%Headings;
+p " ";
+p "SURVCODE: 111 --- Stateside English" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "SURVCODE: 112 --- Stateside Spanish"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "SURVCODE: 121 --- Puerto Rico English"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "SURVCODE: 122 --- Puerto Rico Spanish"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p " ";
+p "PANEL: [YY][Panel #]" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p " ";
+p "PR MAILSTRAT: 1 --- (1) Prenotice Letter (2) Initial Mailout Package (3) Reminder Card (4) Replacement Mailout Package (5) Additional Mailing Postcard"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "SS MAILSTRAT: 2 --- (1) Initial Mailout Package w/o ACS-1 (2) Reminder Pressure-Sealed Letter (3) Replacement Mailout Package (4) Reminder Postcard (5) Additional Mailing Pressure-Sealed Letter"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p " ";
+p "INETELIG: 0 --- Not Internet Eligible"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "INETELIG: 1 --- Internet Eligible"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p " ";
+p "MAILING: 01 --- Initial Mailing"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "MAILING: 02 --- Replacement Mailing"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "MAILING: 06 --- Additional Mailing Postcard"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "MAILING: 08 --- CAPI Internet Letter"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+
+ods layout gridded columns=4;
+*******************************;
+*CHECK FOR CORRECT SURVCODE  ;
+*******************************;
+ods region;
+data survcodecheck;
+	format SURVCODE_String $5.;
+	set labelfile;
+	keep SURVCODE SURVCODE_String;
+	SURVCODE_String=SURVCODE;
+	if SURVCODE_String="" then SURVCODE_String="Blank";
+	drop SURVCODE;
+run;
+
+data survcodecheck; set survcodecheck;
+	SURVCODE=SURVCODE_String;
+	drop SURVCODE_String;
+run;
+
+proc freq data=survcodecheck noprint order=freq;
+table SURVCODE / out=survcodemodetable;
+run;
+
+data _null_;
+set survcodemodetable;
+if _N_ = 1 then do;
+    call SYMPUT('survcodemode', SURVCODE);
+    end;
+run;
+%put &=survcodemode;
+
+proc sql noprint;
+	create table survcodecheck as
+	select *,count(*) as COUNT 
+	from survcodecheck group by SURVCODE;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:survcode_cnt
+    from survcodecheck;
+quit;
+
+%let survcodetitle2= ;
+%macro survcodetitle2;
+	%if &mnumber^=id & &survcode_cnt > 1 | &mnumber^=id & &survcode^=&survcodemode %then %let survcodetitle2 = Problems Detected;
+	%else %let survcodetitle2 = No Problems Detected;
+%mend survcodetitle2;
+%survcodetitle2;
+
+proc report
+	data=survcodecheck out=survcodecheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define SURVCODE / display center;
+	define COUNT / display center;
+%macro togglesurvcodetitle2;
+%if &mnumber^=id %then %do;
+	compute SURVCODE;
+		if SURVCODE^="&survcode" then do; call define("SURVCODE","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if SURVCODE="&survcode" then do; call define("SURVCODE","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that SURVCODE matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&survcodetitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute SURVCODE;
+		if SURVCODE^="&survcode" then do; call define("SURVCODE","STYLE","STYLE=[background=#fdff9c]"); end;
+		if SURVCODE="&survcode" then do; call define("SURVCODE","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that SURVCODE matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files, it's okay to have blank SURVCODE";
+%end;
+%mend togglesurvcodetitle2;
+%togglesurvcodetitle2;
+run;
+
+*******************************;
+*CHECK FOR CORRECT PANEL       ;
+*******************************;
+ods region;
+data panelcheck; 
+	format PANEL_String $5.;
+	set labelfile;
+	keep PANEL PANEL_String;
+	PANEL_String=PANEL;
+	if PANEL_String="" then PANEL_String="Blank";
+	drop PANEL;
+run;
+
+data panelcheck; set panelcheck;
+	PANEL=PANEL_String;
+	drop PANEL_String;
+run;
+
+proc freq data=panelcheck noprint order=freq;
+table PANEL / out=panelmodetable;
+run;
+
+data _null_;
+set panelmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('panelmode', PANEL);
+    end;
+run;
+%put &=panelmode;
+
+proc sql noprint;
+	create table panelcheck as
+	select *,count(*) as COUNT 
+	from panelcheck group by PANEL;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:panel_cnt
+    from panelcheck;
+quit;
+
+%let panelchecktitle2= ;
+%macro panelchecktitle2;
+	%if &panel_cnt > 1 | &panel^=&panelmode %then %let panelchecktitle2 = Problems Detected;
+	%else %let panelchecktitle2 = No Problems Detected;
+%mend panelchecktitle2;
+%panelchecktitle2;
+
+proc report
+	data=panelcheck out=panelcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define PANEL / display center;
+	define COUNT / display center;
+	compute PANEL;
+		if PANEL^="&panel" then do; call define("PANEL","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if PANEL="&panel" then do; call define("PANEL","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that PANEL matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&panelchecktitle2";
+run;
+
+*********************************;
+*CHECK MAILSTRAT MATCHES AUDIENCE;
+*********************************;
+ods region;
+data mailstratcheck; 
+	format MAILSTRAT_String $5.;
+	set labelfile;
+	keep  MAILSTRAT_String;
+	MAILSTRAT_String=MAILSTRAT;
+	if MAILSTRAT_String="" then MAILSTRAT_String="Blank";
+	drop MAILSTRAT;
+run;
+
+data mailstratcheck; set mailstratcheck;
+	MAILSTRAT=MAILSTRAT_String;
+	drop MAILSTRAT_String;
+run;
+
+proc freq data=mailstratcheck noprint order=freq;
+table MAILSTRAT / out=mailstratmodetable;
+run;
+
+data _null_;
+set mailstratmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('mailstratmode', MAILSTRAT);
+    end;
+run;
+%put &=mailstratmode;
+
+proc sql noprint;
+	create table mailstratcheck as
+	select *,count(*) as COUNT 
+	from mailstratcheck group by MAILSTRAT;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:mailstrat_cnt
+    from mailstratcheck;
+quit;
+
+%let mailstratchecktitle2= ;
+%macro mailstratchecktitle2;
+	%if &mnumber^=id & &mailstrat_cnt > 1 | &mnumber^=id & &mailstrat^=&mailstratmode %then %let mailstratchecktitle2 = Problems Detected;
+	%else %let mailstratchecktitle2 = No Problems Detected;
+%mend mailstratchecktitle2;
+%mailstratchecktitle2;
+
+proc report
+	data=mailstratcheck out=mailstratcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define MAILSTRAT / display center;
+	define COUNT / display center;
+%macro togglemailstrattitle2;
+%if &mnumber^=id %then %do;
+	compute MAILSTRAT;
+		if MAILSTRAT^="&mailstrat" then do; call define("MAILSTRAT","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if MAILSTRAT="&mailstrat" then do; call define("MAILSTRAT","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that MAILSTRAT matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&mailstratchecktitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute MAILSTRAT;
+		if MAILSTRAT^="&mailstrat" then do; call define("MAILSTRAT","STYLE","STYLE=[background=#fdff9c]"); end;
+		if MAILSTRAT="&mailstrat" then do; call define("MAILSTRAT","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that MAILSTRAT matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files, it's okay to have blank MAILSTRAT";
+%end;
+%mend togglemailstrattitle2;
+%togglemailstrattitle2;
+run;
+
+*********************************************;
+*Check INETELIG to Verify Internet Eligiblity;
+*********************************************;
+ods region;
+data ineteligcheck; 
+	format INETELIG_String $5.;
+	set labelfile;
+	keep  INETELIG_String;
+	INETELIG_String=INETELIG;
+	if INETELIG_String="" then INETELIG_String="Blank";
+	drop INETELIG;
+run;
+
+data ineteligcheck; set ineteligcheck;
+	INETELIG=INETELIG_String;
+	drop INETELIG_String;
+run;
+
+proc freq data=ineteligcheck noprint order=freq;
+table INETELIG / out=ineteligmodetable;
+run;
+
+data _null_;
+set ineteligmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('ineteligmode', INETELIG);
+    end;
+run;
+%put &=ineteligmode;
+
+proc sql noprint;
+	create table ineteligcheck as
+	select *,count(*) as COUNT 
+	from ineteligcheck group by INETELIG;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:inetelig_cnt
+    from ineteligcheck;
+quit;
+
+%let ineteligtitle2= ;
+%macro ineteligtitle2;
+	%if &mnumber^=id & &inetelig_cnt > 1  | &mnumber^=id & &inetelig^=&ineteligmode %then %let ineteligtitle2 = Problems Detected;
+	%else %let ineteligtitle2 = No Problems Detected;
+%mend ineteligtitle2;
+%ineteligtitle2;
+
+proc report
+	data=ineteligcheck out=ineteligcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define INETELIG / display center;
+	define COUNT / display center;
+%macro toggleineteligtitle2;
+%if &mnumber^=id %then %do;
+	compute INETELIG;
+		if INETELIG^="&inetelig" then do; call define("INETELIG","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if INETELIG="&inetelig" then do; call define("INETELIG","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that INETELIG matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&ineteligtitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute INETELIG;
+		if INETELIG^="&inetelig" then do; call define("INETELIG","STYLE","STYLE=[background=#fdff9c]"); end;
+		if INETELIG="&inetelig" then do; call define("INETELIG","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that INETELIG matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files, it's okay to have blank INETELIG";
+%end;
+%mend toggleineteligtitle2;
+%toggleineteligtitle2;
+run;
+
+*********************************************;
+*Check MAILING matches M1, M2, or M3           ;
+*********************************************;
+ods region;
+data mailingcheck; 
+	format MAILING_String $5.;
+	set labelfile;
+	keep  MAILING_String;
+	MAILING_String=MAILING;
+	if MAILING_String="" then MAILING_String="Blank";
+	drop MAILING;
+run;
+
+data mailingcheck; set mailingcheck;
+	MAILING=MAILING_String;
+	drop MAILING_String;
+run;
+
+proc freq data=mailingcheck noprint order=freq;
+table MAILING / out=mailingmodetable;
+run;
+
+data _null_;
+set mailingmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('mailingmode', MAILING);
+    end;
+run;
+%put &=mailingmode;
+
+proc sql noprint;
+	create table mailingcheck as
+	select *,count(*) as COUNT 
+	from mailingcheck group by MAILING;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:mailing_cnt
+    from mailingcheck;
+quit;
+
+%let mailingtitle2= ;
+%macro mailingtitle2;
+	%if &mnumber^=id & &mailing_cnt > 1  | &mnumber^=id & &mailing^=&mailingmode %then %let mailingtitle2 = Problems Detected;
+	%else %let mailingtitle2 = No Problems Detected;
+%mend mailingtitle2;
+%mailingtitle2;
+
+proc report
+	data=mailingcheck out=mailingcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define MAILING / display center;
+	define COUNT / display center;
+%macro togglemailingtitle2;
+%if &mnumber^=id %then %do;
+	compute MAILING;
+		if MAILING^="&mailing" then do; call define("MAILING","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if MAILING="&mailing" then do; call define("MAILING","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that MAILING matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&mailingtitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute MAILING;
+		if MAILING^="&mailing" then do; call define("MAILING","STYLE","STYLE=[background=#fdff9c]"); end;
+		if MAILING="&mailing" then do; call define("MAILING","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check that MAILING matches &labelfile";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files, it's okay to have blank MAILING";
+%end;
+%mend togglemailingtitle2;
+%togglemailingtitle2;
+run;
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*CHECK FOR BLANK VARIABLES																								  ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+proc odstext;
+p "Check Variables for Blank Observations" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"];
+p "If the following variables contain blank observations, then you may have a problem with your file"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+%let notblank = Not Blank ;
+
+title ;
+ods layout gridded columns=4;
+*******************************;
+*CHECK FOR BLANK CMIDs         ;
+*******************************;
+ods region ;
+data blankcmidcheck; set labelfile;
+	keep CMID;
+	if CMID^="" then CMID="Not Blank";
+	if CMID="" then CMID="Blank";
+run;
+
+proc freq data=blankcmidcheck noprint order=freq;
+table CMID / out=cmidmodetable;
+run;
+
+data _null_;
+set cmidmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('cmidmode', CMID);
+    end;
+run;
+%put &=cmidmode;
+
+proc sql noprint;
+	create table blankcmidcheck as
+	select *,count(*) as COUNT 
+	from blankcmidcheck group by CMID;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:cmid_cnt
+    from blankcmidcheck;
+quit;
+
+%let blankcmidtitle2= ;
+%macro blankcmidtitle2;
+	%if &cmid_cnt > 1 & "&cmidmode"^="&notblank" %then %let blankcmidtitle2 = Problems Detected;
+	%else %let blankcmidtitle2 = No Problems Detected;
+%mend blankcmidtitle2;
+%blankcmidtitle2;
+
+proc report
+	data=blankcmidcheck out=blankcmidcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CMID / display center;
+	define COUNT / display center;
+	compute CMID;
+		if CMID="Blank" then do; call define("CMID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if CMID="Not Blank" then do; call define("CMID","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank CMID";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankcmidtitle2";
+run;
+
+*******************************;
+*CHECK FOR BLANK ADDR1         ;
+*******************************;
+ods region;
+data blankaddr1check; 
+	length ADDR1 $9.;
+	set labelfile;
+	keep ADDR1;
+	if ADDR1^="" then ADDR1="Not Blank";
+	if ADDR1="" then ADDR1="Blank";
+run;
+
+proc freq data=blankaddr1check noprint order=freq;
+table ADDR1 / out=addr1modetable;
+run;
+
+data _null_;
+set addr1modetable;
+if _N_ = 1 then do;
+    call SYMPUT('addr1mode', ADDR1);
+    end;
+run;
+%put &=addr1mode;
+
+proc sql noprint;
+	create table blankaddr1check as
+	select *,count(*) as COUNT 
+	from blankaddr1check group by ADDR1;
+quit;
+
+proc sql noprint;
+    select count(distinct ADDR1) into:addr1_cnt
+    from blankaddr1check;
+quit;
+
+%let blankaddr1title2= ;
+%macro blankaddr1title2;
+	%if &audience=hu & &addr1_cnt > 1 | 
+		&audience=hu & "&addr1mode"^="&notblank" 
+	%then %let blankaddr1title2 = Problems Detected;
+	%else %let blankaddr1title2 = No Problems Detected;
+%mend blankaddr1title2;
+%blankaddr1title2;
+
+proc report
+	data=blankaddr1check out=blankaddr1check
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define ADDR1 / display center;
+	define COUNT / display center;
+%macro toggleaddr1title2;
+%if &audience=hu %then %do;
+	compute ADDR1;
+		if ADDR1="Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if ADDR1="Not Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank ADDR1";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankaddr1title2";
+%end;
+%if &audience=pr %then %do;
+	compute ADDR1;
+		if ADDR1="Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#fdff9c]"); end;
+		if ADDR1="Not Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank ADDR1";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In PR label files, it's okay to have blank ADDR1";
+%end;
+%if &mnumber=id %then %do;
+	compute ADDR1;
+		if ADDR1="Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#fdff9c]"); end;
+		if ADDR1="Not Blank" then do; call define("ADDR1","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank ADDR1";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files label files, it's okay to have blank ADDR1";
+%end;
+%mend toggleaddr1title2;
+%toggleaddr1title2;
+run;
+
+*******************************;
+*CHECK FOR BLANK CITIES        ;
+*******************************;
+ods region;
+data blankcitycheck; 
+	length CITY $9;
+	set labelfile;
+	keep CITY;
+	if CITY^="" then CITY="Not Blank";
+	if CITY="" then CITY="Blank";
+run;
+
+proc freq data=blankcitycheck noprint order=freq;
+table CITY / out=citymodetable;
+run;
+
+data _null_;
+set citymodetable;
+if _N_ = 1 then do;
+    call SYMPUT('citymode', CITY);
+    end;
+run;
+%put &=citymode;
+
+proc sql noprint;
+	create table blankcitycheck as
+	select *,count(*) as COUNT 
+	from blankcitycheck group by CITY;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:city_cnt
+    from blankcitycheck;
+quit;
+
+%let blankcitytitle2= ;
+%macro blankcitytitle2;
+	%if &mnumber^=id & &city_cnt > 1 |
+		&mnumber^=id & "&citymode"^="&notblank" %then %let blankcitytitle2 = Problems Detected;
+	%else %let blankcitytitle2 = No Problems Detected;
+%mend blankcitytitle2;
+%blankcitytitle2;
+
+proc report
+	data=blankcitycheck out=blankcitycheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CITY / display center;
+	define COUNT / display center;
+%macro togglecitytitle2;
+%if &mnumber^=id %then %do;
+	compute CITY;
+		if CITY="Blank" then do; call define("CITY","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if CITY="Not Blank" then do; call define("CITY","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank CITY";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankcitytitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute CITY;
+		if CITY="Blank" then do; call define("CITY","STYLE","STYLE=[background=#fdff9c]"); end;
+		if CITY="Not Blank" then do; call define("CITY","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank CITY";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files label files, it's okay to have blank CITY";
+%end;
+%mend togglecitytitle2;
+%togglecitytitle2;
+run;
+
+*******************************;
+*CHECK FOR BLANK STATE         ;
+*******************************;
+ods region;
+data blankstatecheck; 
+	length STATE $9;
+	set labelfile;
+	keep STATE;
+	if STATE^="" then STATE="Not Blank";
+	if STATE="" then STATE="Blank";
+run;
+
+proc freq data=blankstatecheck noprint order=freq;
+table STATE / out=statemodetable;
+run;
+
+data _null_;
+set statemodetable;
+if _N_ = 1 then do;
+    call SYMPUT('statemode', STATE);
+    end;
+run;
+%put &=statemode;
+
+proc sql noprint;
+	create table blankstatecheck as
+	select *,count(*) as COUNT 
+	from blankstatecheck group by STATE;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:state_cnt
+    from blankstatecheck;
+quit;
+
+%let blankstatetitle2= ;
+%macro blankstatetitle2;
+	%if &mnumber^=id & &state_cnt > 1 |
+        &mnumber^=id & "&statemode"^="&notblank"
+	%then %let blankstatetitle2 = Problems Detected;
+	%else %let blankstatetitle2 = No Problems Detected;
+%mend blankstatetitle2;
+%blankstatetitle2;
+
+proc report
+	data=blankstatecheck out=blankstatecheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define STATE / display center;
+	define COUNT / display center;
+%macro togglestatetitle2;
+%if &mnumber^=id %then %do;
+	compute STATE;
+		if STATE="Blank" then do; call define("STATE","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if STATE="Not Blank" then do; call define("STATE","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank STATE";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankstatetitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute STATE;
+		if STATE="Blank" then do; call define("STATE","STYLE","STYLE=[background=#fdff9c]"); end;
+		if STATE="Not Blank" then do; call define("STATE","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank STATE";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files label files, it's okay to have blank STATE";
+%end;
+%mend togglestatetitle2;
+%togglestatetitle2;
+run;
+
+*******************************;
+*CHECK FOR BLANK ZIP          ;
+*******************************;
+ods region;
+data blankzipcheck; 
+	length ZIP $9;
+	set labelfile;
+	keep ZIP;
+	if ZIP^="" then ZIP="Not Blank";
+	if ZIP="" then ZIP="Blank";
+run;
+
+proc freq data=blankzipcheck noprint order=freq;
+table ZIP / out=zipmodetable;
+run;
+
+data _null_;
+set zipmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('zipmode', ZIP);
+    end;
+run;
+%put &=zipmode;
+
+proc sql noprint;
+	create table blankzipcheck as
+	select *,count(*) as COUNT 
+	from blankzipcheck group by ZIP;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:zip_cnt
+    from blankzipcheck;
+quit;
+
+%let blankziptitle2= ;
+%macro blankziptitle2;
+	%if &mnumber^=id & &zip_cnt > 1 | &mnumber^=id & "&zipmode"^="&notblank" %then %let blankziptitle2 = Problems Detected;
+	%else %let blankziptitle2 = No Problems Detected;
+%mend blankziptitle2;
+%blankziptitle2;
+
+proc report
+	data=blankzipcheck out=blankzipcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define ZIP / display center;
+	define COUNT / display center;
+%macro toggleziptitle2;
+%if &mnumber^=id %then %do;
+	compute ZIP;
+		if ZIP="Blank" then do; call define("ZIP","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if ZIP="Not Blank" then do; call define("ZIP","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank ZIP";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankziptitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute ZIP;
+		if ZIP="Blank" then do; call define("ZIP","STYLE","STYLE=[background=#fdff9c]"); end;
+		if ZIP="Not Blank" then do; call define("ZIP","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank ZIP";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files label files, it's okay to have blank ZIP";
+%end;
+%mend toggleziptitle2;
+%toggleziptitle2;
+run;
+
+*******************************;
+*CHECK FOR BLANK INETUSERID    ;
+*******************************;
+ods region;
+data blankinetuseridcheck; 
+	length INETUSERID $9;
+	set labelfile;
+	keep INETUSERID;
+	if INETUSERID^="" then INETUSERID="Not Blank";
+	if INETUSERID="" then INETUSERID="Blank";
+run;
+
+proc freq data=blankinetuseridcheck noprint order=freq;
+table INETUSERID / out=inetuseridmodetable;
+run;
+
+data _null_;
+set inetuseridmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('inetuseridmode', INETUSERID);
+    end;
+run;
+%put &=inetuseridmode;
+
+proc sql noprint;
+	create table blankinetuseridcheck as
+	select *,count(*) as COUNT 
+	from blankinetuseridcheck group by INETUSERID;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:inetuserid_cnt
+    from blankinetuseridcheck;
+quit;
+
+%let blankinetuseridtitle2= ;
+%macro blankinetuseridtitle2;
+	%if &audience=hu & &inetuserid_cnt > 1 | 
+		&audience=hu & "&inetuseridmode"^="&notblank"
+	%then %let blankinetuseridtitle2 = Problems Detected;
+	%else %let blankinetuseridtitle2 = No Problems Detected;
+%mend blankinetuseridtitle2;
+%blankinetuseridtitle2;
+
+proc report
+	data=blankinetuseridcheck out=blankinetuseridcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define INETUSERID / display center;
+	define COUNT / display center;
+%macro toggleinetuseridtitle2;
+%if &audience=pr %then %do;
+	compute INETUSERID;
+		if INETUSERID="Blank" then do; call define("INETUSERID","STYLE","STYLE=[background=#fdff9c]"); end;
+		if INETUSERID="Not Blank" then do; call define("INETUSERID","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank INETUSERID";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In PR label files, it's okay to have blank INETUSERID";
+%end;
+%else %do;
+	compute INETUSERID;
+		if INETUSERID="Blank" then do; call define("INETUSERID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if INETUSERID="Not Blank" then do; call define("INETUSERID","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank INETUSERID";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankinetuseridtitle2";
+%end;
+%mend toggleinetuseridtitle2;
+%toggleinetuseridtitle2;
+run;
+
+*******************************;
+*CHECK FOR BLANK APT           ;
+*******************************;
+ods region;
+data blankaptcheck; 
+	length APT $9;
+	set labelfile;
+	keep APT;
+	if APT^="" then APT="Not Blank";
+	if APT="" then APT="Blank";
+run;
+
+proc freq data=blankaptcheck noprint order=freq;
+table APT / out=aptmodetable;
+run;
+
+data _null_;
+set aptmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('aptmode', APT);
+    end;
+run;
+%put &=aptmode;
+
+proc sql noprint;
+	create table blankaptcheck as
+	select *,count(*) as COUNT 
+	from blankaptcheck group by APT;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:apt_cnt
+    from blankaptcheck;
+quit;
+
+%let blankapttitle2= ;
+%macro blankapttitle2;
+	%if &audience=pr & &apt_cnt > 1 |
+		&audience=pr & "&aptmode"^="&notblank"
+	%then %let blankapttitle2 = Problems Detected;
+	%else %let blankapttitle2 = No Problems Detected;
+%mend blankapttitle2;
+%blankapttitle2;
+
+proc report
+	data=blankaptcheck out=blankaptcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define APT / display center;
+	define COUNT / display center;
+%macro toggleapttitle2;
+%if &audience=hu %then %do;
+	compute APT;
+		if APT="Blank" then do; call define("APT","STYLE","STYLE=[background=#fdff9c]"); end;
+		if APT="Not Blank" then do; call define("APT","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank APT";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In SS label files, it's okay to have blank APT";
+%end;
+%if &audience=pr %then %do;
+	compute APT;
+		if APT="Blank" then do; call define("APT","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if APT="Not Blank" then do; call define("APT","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank APT";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankapttitle2";
+%end;
+%if &mnumber=id %then %do;
+	compute APT;
+		if APT="Blank" then do; call define("APT","STYLE","STYLE=[background=#fdff9c]"); end;
+		if APT="Not Blank" then do; call define("APT","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank APT";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"In IDC input files label files, it's okay to have blank APT";
+%end;
+%mend toggleapttitle2;
+%toggleapttitle2;
+run;
+
+*******************************;
+*CHECK FOR BLANK ZIP4          ;
+*******************************;
+ods region;
+data blankzip4check;
+	length ZIP4 $9;
+	set labelfile;
+	keep ZIP4;
+	if ZIP4^="" then ZIP4="Not Blank";
+	if ZIP4="" then ZIP4="Blank";
+run;
+
+proc sql noprint;
+	create table blankzip4check as
+	select *,count(*) as COUNT 
+	from blankzip4check group by ZIP4;
+quit;
+
+proc report
+	data=blankzip4check out=blankzip4check
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define ZIP4 / display center;
+	define COUNT / display center;
+	compute ZIP4;
+		if ZIP4="Blank" then do; call define("ZIP4","STYLE","STYLE=[background=#fdff9c]"); end;
+		if ZIP4="Not Blank" then do; call define("ZIP4","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold
+		h=13pt 
+		font="calibri"
+		"Check for Blank ZIP4";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"It's okay to have blank ZIP4";
+run;
+
+*******************************;
+*CHECK FOR BLANK CTRILNUM      ;
+*******************************;
+%macro m4ctrlnumbercheck;
+%if "&mnumber"="m4" %then %do;
+ods region;
+data blankctrlnumcheck; 
+	length CTRLNUM $9;
+	set labelfile;
+	keep CTRLNUM;
+	if CTRLNUM^="" then CTRLNUM="Not Blank";
+	if CTRLNUM="" then CTRLNUM="Blank";
+run;
+
+proc freq data=blankctrlnumcheck noprint order=freq;
+table CTRLNUM / out=ctrlnummodetable;
+run;
+
+data _null_;
+set ctrlnummodetable;
+if _N_ = 1 then do;
+    call SYMPUT('ctrlnummode', CTRLNUM);
+    end;
+run;
+%put &=ctrlnummode;
+
+proc sql noprint;
+	create table blankctrlnumcheck as
+	select *,count(*) as COUNT 
+	from blankctrlnumcheck group by CTRLNUM;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:ctrlnum_cnt
+    from blankctrlnumcheck;
+quit;
+
+%macro blankctrlnumtitle2;
+	%if &ctrlnum_cnt > 1 | "&ctrlnummode"^="&notblank" %then %let blankctrlnumtitle2 = Problems Detected;
+	%else %let blankctrlnumtitle2 = No Problems Detected;
+%mend blankctrlnumtitle2;
+%blankctrlnumtitle2;
+
+proc report
+	data=blankctrlnumcheck out=blankctrlnumcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define CTRLNUM / display center;
+	define COUNT / display center;
+	compute CTRLNUM;
+		if CTRLNUM="Blank" then do; call define("CTRLNUM","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if CTRLNUM="Not Blank" then do; call define("CTRLNUM","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank CTRLNUM";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankctrlnumtitle2";
+run;
+%end;
+%mend m4ctrlnumbercheck;
+%m4ctrlnumbercheck;
+
+*******************************;
+*CHECK FOR BLANK MAILF         ;
+*******************************;
+%macro idmailfcheck;
+%if "&mnumber"="id" %then %do;
+ods region;
+data blankmailfcheck; 
+	length MAILF $9;
+	set labelfile;
+	keep MAILF;
+	if MAILF^="" then MAILF="Not Blank";
+	if MAILF="" then MAILF="Blank";
+run;
+
+proc freq data=blankmailfcheck noprint order=freq;
+table MAILF / out=mailfmodetable;
+run;
+
+data _null_;
+set mailfmodetable;
+if _N_ = 1 then do;
+    call SYMPUT('mailfmode', MAILF);
+    end;
+run;
+%put &=mailfmode;
+
+proc sql noprint;
+	create table blankmailfcheck as
+	select *,count(*) as COUNT 
+	from blankmailfcheck group by MAILF;
+quit;
+
+proc sql noprint;
+    select count(distinct COUNT) into:mailf_cnt
+    from blankmailfcheck;
+quit;
+
+%macro blankmailftitle2;
+	%if &mailf_cnt > 1 | "&mailfmode"^="&notblank" %then %let blankmailftitle2 = Problems Detected;
+	%else %let blankmailftitle2 = No Problems Detected;
+%mend blankmailftitle2;
+%blankmailftitle2;
+
+proc report
+	data=blankmailfcheck out=blankmailfcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define MAILF / display center;
+	define COUNT / display center;
+	compute MAILF;
+		if MAILF="Blank" then do; call define("MAILF","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if MAILF="Not Blank" then do; call define("MAILF","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Blank MAILF";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&blankmailftitle2";
+run;
+%end;
+%mend idmailfcheck;
+%idmailfcheck;
+
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*ALPHANUMERIC CHECKS          																							  ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+proc odstext;
+p "Check INETUSERID for Invalid Alphanumerics" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"];
+p "Invalid Single Digit Alphanumerics : A|E|I|O|U|L|S|N|0|1|B"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "Invalid Alphanumeric Combinations : VW|WV|VV|2Z|Z2|KX|XK|6G|G6"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+
+title ;
+ods layout gridded columns=2;
+*************************************************************;
+*CHECK FOR INVALID SINGLE ALPHANUMERICS A|E|I|O|U|L|S|N|0|1|B;
+*************************************************************;
+ods region;
+data invalidcheck;
+	length INETUSERID $24;
+	set labelfile;
+	keep INETUSERID; 
+run;
+
+data invalidcheck;
+	set invalidcheck;
+	match = prxmatch("/A|E|I|O|U|L|S|N|0|1|B/", INETUSERID);
+	if match = 0 then INETUSERID="No invalid alphanumerics";
+	drop match;
+run;
+
+proc sql noprint;
+	create table invalidcheck as
+	select *,count(*) as COUNT 
+	from invalidcheck group by INETUSERID;
+quit;
+
+proc sql noprint;
+    select count(distinct INETUSERID) into:invalid_cnt
+    from invalidcheck;
+quit;
+
+%let invalidchecktitle2= ;
+%macro invalidchecktitle2;
+	%if &invalid_cnt > 1 %then %let invalidchecktitle2 = Problems Detected;
+	%else %let invalidchecktitle2 = No Problems Detected;
+%mend invalidchecktitle2;
+%invalidchecktitle2;
+
+proc report
+	data=invalidcheck out=invalidcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define INETUSERID / display center;
+	define COUNT / display center;
+	compute INETUSERID;
+		if INETUSERID^="No invalid alphanumerics" then do; call define("INETUSERID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if INETUSERID="No invalid alphanumerics" then do; call define("INETUSERID","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Invalid Single Digit Alphanumerics";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&invalidchecktitle2";
+run;
+
+***********************************************************************;
+*CHECK FOR INVALID ALPHANUMERIC COMBINATIONS VW|WV|VV|2Z|Z2|KX|XK|6G|G6;
+***********************************************************************;
+ods region;
+data combinationcheck;
+	length INETUSERID $23;
+	set labelfile;
+	keep INETUSERID; 
+run;
+
+data combinationcheck;
+	set combinationcheck;
+	match = prxmatch("/VW|WV|VV|2Z|Z2|KX|XK|6G|G6/", INETUSERID);
+	if match = 0 then INETUSERID="No invalid combinations";
+	drop match;
+run;
+
+proc sql noprint;
+	create table combinationcheck as
+	select *,count(*) as COUNT 
+	from combinationcheck group by INETUSERID;
+quit;
+
+proc sql noprint;
+    select count(distinct INETUSERID) into:invalidcombo_cnt
+    from combinationcheck;
+quit;
+
+%let combinationchecktitle2= ;
+%macro combinationchecktitle2;
+	%if &invalidcombo_cnt > 1 %then %let combinationchecktitle2 = Problems Detected;
+	%else %let combinationchecktitle2 = No Problems Detected;
+%mend combinationchecktitle2;
+%combinationchecktitle2;
+
+proc report
+	data=combinationcheck out=combinationcheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define INETUSERID / display center;
+	define COUNT / display center;
+	compute INETUSERID;
+		if INETUSERID^="No invalid combinations" then do; call define("INETUSERID","STYLE","STYLE=[background=#ffc4c4]"); end;
+		if INETUSERID="No invalid combinations" then do; call define("INETUSERID","STYLE","STYLE=[background=#e2ffe2]"); end;
+	endcomp;
+	title1
+		c=black bold 
+		h=13pt 
+		font="calibri"
+		"Check for Invalid Alphanumeric Combinations";
+	title2
+		c=black
+		h=11pt 
+		font="calibri"
+		"&combinationchecktitle2";
+run;
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*CHECK MPGRP FOR EVEN DISTRIBUTION																				          ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+title ;
+data mpgrpdistributioncheck; set labelfile;
+	keep MPGRP;
+run;
+
+proc sql noprint;
+	create table mpgrpdistributioncheck as
+	select *,count(*) as COUNT 
+	from mpgrpdistributioncheck group by MPGRP;
+quit;
+
+proc sql noprint;
+	select sum(COUNT)
+	into:TOTAL from mpgrpdistributioncheck;
+quit;
+
+data mpgrpdistributioncheck; set mpgrpdistributioncheck;
+	format PERCENT percent8.2;
+	PERCENT=(COUNT/&TOTAL);
+run;
+
+proc sql noprint;
+    select sum(missing(MPGRP))
+	into:mpgrpdistribution_cnt from mpgrpdistributioncheck;
+quit;
+
+proc sql noprint;
+    select mean(PERCENT)
+	into:mean_percent from mpgrpdistributioncheck;
+quit;
+
+proc odstext;
+p "Checks for Methods Panel Coordination Branch" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"];
+p "#1: For SS English and PR Spanish, check that MPGRP has values 1-24"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "#2: For SS English and PR Spanish, check that MPGRP is evenly distributed across values"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "#3: For all audiences, check that MPGRP has no blanks"/ style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+
+ods layout gridded columns=2;
+ods region;
+
+proc report
+	data=mpgrpdistributioncheck out=mpgrpdistributioncheck
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define MPGRP / display center;
+	define COUNT / display center;
+	define PERCENT / display center;
+	compute MPGRP;
+		if MPGRP=. then do; call define("MPGRP","STYLE","STYLE=[background=#ffc4c4]"); end;
+	endcomp;
+	compute COUNT;
+		if MPGRP=. then do; call define("COUNT","STYLE","STYLE=[background=#ffc4c4]"); end;
+	endcomp;
+	compute PERCENT;
+		if MPGRP=. then do; call define("PERCENT","STYLE","STYLE=[background=#ffc4c4]"); end;
+	endcomp;
+	endcomp;
+run;
+
+ods region;
+proc sgplot data=mpgrpdistributioncheck;
+	vbar MPGRP / response=PERCENT nostatlabel;
+	refline &mean_percent / lineattrs=(pattern=35 thickness=.5px color=red);
+	xaxis
+		labelattrs=(family="calibri" size=10pt weight=bold)
+		valueattrs=(family="calibri" size=10pt);
+	yaxis offsetmin=0 values=(0 to .15 by .05)
+		labelattrs=(family="calibri" size=10pt weight=bold)
+		valueattrs=(family="calibri" size=10pt);
+run;
+
+ods layout end;
+
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+*APPROVAL TEXT FOR EMAIL  																						          ;
+**************************************************************************************************************************;
+**************************************************************************************************************************;
+
+proc sql noprint;
+    select count(distinct cmid) into:workload
+    from labelfile;
+quit;
+
+*PRODUCES AN ERROR, BUT IT'S NOT A PROBLEM;
+%let mailingphase= ;
+%let audience_text= ;
+%let percent_workload = %eval(100*&workload/&total_workload);
+%let last_month_diff = %eval((&percent_workload)-&last_month);
+%let last_year_diff = %eval((&percent_workload)-&last_year);
+
+proc odstext;
+p "Approval/Disapproval" / style=[fontweight=bold fontsize=15pt fontfamily="calibri"];
+run;
+
+%Macro approvaltext;
+%if &audience=hu & &mnumber=m1 %then %let mailingphase=an initial mailout package & reminder pressure-sealed letter.;
+%if &audience=pr & &mnumber=m1 %then %let mailingphase=a prenotice letter & initial mailout package.;
+%if &audience=hu & &mnumber=m2e | &audience=hu & &mnumber=m2s %then %let mailingphase=a replacement mailout package & reminder postcard.;
+%if &audience=pr & &mnumber=m2e | &audience=pr & &mnumber=m2s %then %let mailingphase=a reminder card & replacement mailout package.;
+%if &mnumber=m3e | &mnumber=m3s %then %let mailingphase=an additional mailing postcard.;
+%if &mnumber=m3  %then %let mailingphase=an additional mailing pressure-sealed letter.;
+%if &audience=hu %then %let audience_text=Stateside;
+%if &audience=pr %then %let audience_text=Puerto Rico;
+%if 
+	&audience                =hu    			   &
+	&language                =e                    &
+	&mnumber                 ^=m1                  &
+	&mnumber                 ^=m4                  &
+	&survcodetitle2          =No Problems Detected &
+	&panelchecktitle2        =No Problems Detected &
+	&mailstratchecktitle2    =No Problems Detected &
+	&ineteligtitle2          =No Problems Detected &
+	&mailingtitle2			 =No Problems Detected &
+	&blankcmidtitle2         =No Problems Detected &
+	&blankaddr1title2        =No Problems Detected &
+	&blankcitytitle2         =No Problems Detected &
+	&blankstatetitle2        =No Problems Detected &
+	&blankziptitle2          =No Problems Detected &
+	&invalidchecktitle2      =No Problems Detected &
+	&combinationchecktitle2  =No Problems Detected
+|
+	&audience                =pr    			   &
+	&survcodetitle2          =No Problems Detected &
+	&panelchecktitle2        =No Problems Detected &
+	&mailstratchecktitle2    =No Problems Detected &
+    &ineteligtitle2          =No Problems Detected &
+	&mailingtitle2			 =No Problems Detected &
+	&blankcmidtitle2         =No Problems Detected &
+	&blankcitytitle2         =No Problems Detected &
+	&blankstatetitle2        =No Problems Detected &
+	&blankziptitle2          =No Problems Detected &
+	&invalidchecktitle2      =No Problems Detected &
+	&combinationchecktitle2  =No Problems Detected
+%then %do;
+proc odstext;
+p "Label file &labelfile is approved with &workload addresses." / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "We will mail &percent_workload% of the &audience_text initial mailing sample &mailingphase" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p " " /style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "Percentage point difference from corresponding label file last month: &last_month_diff%" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+p "Percentage point difference from corresponding label file last year: &last_year_diff%" / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+%end;
+%if 
+	&audience               =hu    			      &
+	&mnumber                =m1                   &
+	&survcodetitle2         =No Problems Detected &
+	&panelchecktitle2       =No Problems Detected &
+	&mailstratchecktitle2   =No Problems Detected &
+	&ineteligtitle2         =No Problems Detected &
+	&mailingtitle2			=No Problems Detected &
+	&blankcmidtitle2        =No Problems Detected &
+	&blankaddr1title2       =No Problems Detected &
+	&blankcitytitle2        =No Problems Detected &
+	&blankstatetitle2       =No Problems Detected &
+	&blankziptitle2         =No Problems Detected &
+	&invalidchecktitle2     =No Problems Detected &
+	&combinationchecktitle2 =No Problems Detected
+|
+	&audience               =hu    			      &
+	&language               =s					  &
+	&survcodetitle2         =No Problems Detected &
+	&panelchecktitle2       =No Problems Detected &
+	&mailstratchecktitle2   =No Problems Detected &
+	&ineteligtitle2         =No Problems Detected &
+	&mailingtitle2			=No Problems Detected &
+	&blankcmidtitle2        =No Problems Detected &
+	&blankaddr1title2       =No Problems Detected &
+	&blankcitytitle2        =No Problems Detected &
+	&blankstatetitle2       =No Problems Detected &
+	&blankziptitle2         =No Problems Detected &
+	&invalidchecktitle2     =No Problems Detected &
+	&combinationchecktitle2 =No Problems Detected
+|
+	&mnumber     			=m4                   &
+	&survcodetitle2         =No Problems Detected &
+	&panelchecktitle2       =No Problems Detected &
+	&mailstratchecktitle2   =No Problems Detected &
+	&ineteligtitle2         =No Problems Detected &
+	&mailingtitle2			=No Problems Detected &
+	&blankcmidtitle2        =No Problems Detected &
+	&blankaddr1title2       =No Problems Detected &
+	&blankcitytitle2        =No Problems Detected &
+	&blankstatetitle2       =No Problems Detected &
+	&blankziptitle2         =No Problems Detected &
+	&invalidchecktitle2     =No Problems Detected &
+	&combinationchecktitle2 =No Problems Detected &
+	&blankctrlnumtitle2     =No Problems Detected
+|
+	&mnumber     			=id                   &
+	&survcodetitle2         =No Problems Detected &
+	&panelchecktitle2       =No Problems Detected &
+	&mailstratchecktitle2   =No Problems Detected &
+	&ineteligtitle2         =No Problems Detected &
+	&mailingtitle2			=No Problems Detected &
+	&blankcmidtitle2        =No Problems Detected &
+	&blankaddr1title2       =No Problems Detected &
+	&blankcitytitle2        =No Problems Detected &
+	&blankstatetitle2       =No Problems Detected &
+	&blankziptitle2         =No Problems Detected &
+	&invalidchecktitle2     =No Problems Detected &
+	&combinationchecktitle2 =No Problems Detected &
+	&blankmailftitle2       =No Problems Detected
+%then %do;
+proc odstext;
+p "Label file &labelfile is approved with &workload addresses." / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+%end;
+%if &survcodetitle2         =Problems Detected |
+	&panelchecktitle2       =Problems Detected |
+	&mailstratchecktitle2   =Problems Detected |
+	&ineteligtitle2         =Problems Detected |
+	&mailingtitle2			=Problems Detected |
+	&blankcmidtitle2        =Problems Detected |
+	&blankaddr1title2       =Problems Detected |
+	&blankcitytitle2        =Problems Detected |
+	&blankstatetitle2       =Problems Detected |
+	&blankziptitle2         =Problems Detected |
+	&blankinetuseridtitle2  =Problems Detected |
+	&blankaddr1title2       =Problems Detected |
+	&invalidchecktitle2     =Problems Detected |
+	&combinationchecktitle2 =Problems Detected |
+	&blankctrlnumtitle2     =Problems Detected |
+	&blankmailftitle2       =Problems Detected
+%then %do;
+proc odstext;
+p "A problem was detected when reviewing this label file. Please review the findings above." / style=[fontstyle=italic fontsize=11pt fontfamily="calibri"];
+run;
+%end;
+%Mend approvaltext;
+%approvaltext;
+ods html close;
+quit;
