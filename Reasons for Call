@@ -1,0 +1,458 @@
+*Reasons for Call;
+*Last Updated: 30 October 2019;
+
+*SPECIFY DATA YEAR FOR COMPARISON;
+%let data1 = TQA2015;
+
+*SPECIFY SUBSEQUENT DATA YEAR FOR COMPARISON;
+%let data2 = TQA2017;
+
+***************************************************************************************************************************
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+*Import Data for Dataset 1;
+proc import out=&data1
+	datafile="J:\acsops1\ACS_HUSR\Reports\Reasons for Call"
+	dbms=xlsx replace;
+	range="'&data1'$A2:N65";
+	getnames=yes;
+run;
+
+*Clean Dataset 1;
+data &data1; set &data1;
+	if Panel="" then delete;
+	if Panel="Reason" then delete;
+	keep Panel Total;
+	drop else;
+run;
+
+*Format Total as numerical value;
+data &data1; set &data1;
+	format &data1 best20.;
+	&data1=Total;
+	drop Total;
+run;
+
+*Identify Total Value from Dataset 1;
+proc sql noprint;
+select max(&data1)
+into:max1 from &data1;
+quit;
+
+*Identify Reason for Call;
+data &data1; set &data1;
+	length REASON1 $200 REASON2 $200;
+	retain REASON1_ID REASON2_ID;
+	call prxdebug(0);
+	if _n_ = 1 then do;
+		REASON1_ID = prxparse("/[\d]* - (.*)/");
+		REASON2_ID =prxparse("/[\d]* - INT_(.*)/"); 
+	end;
+/*
+PRXPARSE ID DEFINITIONS:
+
+The following ID's identify REASON from the following naming conventions--
+
+REASON1_ID   : ## - REASON
+REASON2_ID	 : ## - INT_REASON
+*/
+put PANEL;
+	if prxmatch(REASON1_ID, PANEL) then do; 
+		REASON1 = prxposn(REASON1_ID,1,PANEL);
+	end;
+	if prxmatch(REASON2_ID, PANEL) then do; 
+		REASON2 = prxposn(REASON2_ID,1,PANEL);
+	end;
+	drop REASON1_ID REASON2_ID;
+run;
+
+*Coalesce Reasons Variable in Dataset 1;
+data &data1; set &data1;
+	Reason=REASON2;
+	if Reason="" then Reason=REASON1;
+	if Reason="" then Reason="Total";
+	drop REASON1 REASON2 PANEL;
+run;
+
+*Generate Percent Variable;
+data &data1; set &data1;
+	Percent_&data1=&data1/&max1;
+run;
+
+*Reorder Variables;
+data &data1;
+   retain Reason &data1 Percent_&data1;
+   set &data1;
+run;
+
+proc sort data=&data1;
+	by Reason;
+run;
+
+data &data1; set &data1;
+	format Percent_&data1 PERCENT8.2;
+run;
+
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+*Import Data for Dataset 2;
+proc import out=&data2
+	datafile="J:\acsops1\ACS_HUSR\Reports\Reasons for Call"
+	dbms=xlsx replace;
+	range="'&data2'$A2:N65";
+	getnames=yes;
+run;
+
+*Clean Dataset 2;
+data &data2; set &data2;
+	if Panel="" then delete;
+	if Panel="Reason" then delete;
+	keep Panel Total;
+	drop else;
+run;
+
+*Format Total as numerical value;
+data &data2; set &data2;
+	format &data2 best20.;
+	&data2=Total;
+	drop Total;
+run;
+
+*Identify Total Value from Dataset 2;
+proc sql noprint;
+select max(&data2)
+into:max2 from &data2;
+quit;
+
+*Identify Reason for Call;
+data &data2; set &data2;
+	length REASON1 $200 REASON2 $200;
+	retain REASON1_ID REASON2_ID;
+	call prxdebug(0);
+	if _n_ = 1 then do;
+		REASON1_ID = prxparse("/[\d]* - (.*)/");
+		REASON2_ID =prxparse("/[\d]* - INT_(.*)/"); 
+	end;
+/*
+PRXPARSE ID DEFINITIONS:
+
+The following ID's identify REASON from the following naming conventions--
+
+REASON1_ID   : ## - REASON
+REASON2_ID	 : ## - INT_REASON
+*/
+put PANEL;
+	if prxmatch(REASON1_ID, PANEL) then do; 
+		REASON1 = prxposn(REASON1_ID,1,PANEL);
+	end;
+	if prxmatch(REASON2_ID, PANEL) then do; 
+		REASON2 = prxposn(REASON2_ID,1,PANEL);
+	end;
+	drop REASON1_ID REASON2_ID;
+run;
+
+*Coalesce Reasons Variable in Dataset 2;
+data &data2; set &data2;
+	Reason=REASON2;
+	if Reason="" then Reason=REASON1;
+	if Reason="" then Reason="Total";
+	drop REASON1 REASON2 PANEL;
+run;
+
+*Generate Percent Variable;
+data &data2; set &data2;
+	Percent_&data2=&data2/&max2;
+run;
+
+*Reorder Variables;
+data &data2;
+   retain Reason &data2 Percent_&data2;
+   set &data2;
+run;
+
+proc sort data=&data2;
+	by Reason;
+run;
+
+data &data2; set &data2;
+	format Percent_&data2 PERCENT8.2;
+run;
+
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+*Merge &data1 and &data2 for Comparison;
+data comparison;
+	merge &data1 &data2;
+	by Reason; 
+run;
+
+*Generate Variables;
+data comparison; set comparison;
+	Difference=&data2-&data1;
+run;
+
+data comparison; set comparison;
+	format Percent_Change PERCENT8.2;
+	Percent_Change=(&data2-&data1)/&data2;
+run;
+
+data comparison; set comparison;
+	format Percent_Points PERCENT8.2;
+	Percent_Points=(&data2/&max2)-(&data1/&max1);
+run;
+
+data comparison; set comparison;
+	format Percent_Change2 PERCENT8.2;
+	Percent_Change2=(Percent_&data2-Percent_&data1)/Percent_&data1;
+run;
+
+proc sort data=comparison;
+	by descending Percent_Points;
+run;
+
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+proc sort data=&data1;
+	by Percent_&data1;
+run;
+
+proc sort data=&data2;
+	by Percent_&data2;
+run;
+
+title1
+		c=black
+		h=18pt 
+		font="calibri" 
+		" ";
+
+ods layout gridded columns=2;
+ods region;
+proc report
+	data=&data1 out=&data1
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define Reason / display "Reason for Call";
+	define &data1 / display "Count" center;
+	define Percent_&data1 / display "Percent of Total Calls" center;
+	compute Reason;
+		if Reason="Total" then do; call define(_row_,"STYLE",'STYLE=[font_weight=bold background=#afffaf]'); end;
+	endcomp;
+		title1 
+		c=black
+		h=18pt 
+		font="calibri" 
+		"&data1 - Reasons for Call";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: SAS Web Report Studio";
+run;
+
+ods region;
+proc report
+	data=&data2 out=&data2
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define Reason / display "Reason for Call";
+	define &data2 / display "Count" center;
+	define Percent_&data2 / display "Percent of Total Calls" center;
+	compute Reason;
+		if Reason="Total" then do; call define(_row_,"STYLE",'STYLE=[font_weight=bold background=#afffaf]'); end;
+	endcomp;
+	title1 
+		c=black
+		h=18pt 
+		font="calibri" 
+		"&data2 - Reasons for Call";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: SAS Web Report Studio";
+run;
+
+ods layout end;
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+proc report
+	data=comparison out=comparison
+	style(header)=[fontfamily="calibri"]
+	style(column)=[fontfamily="calibri"]
+;
+	define Reason / display "Reason for Call";
+	define &data1 / display "&data1 - Count" center;
+	define Percent_&data1 / display "&data1 - Percent of Total" center;
+	define &data2 / display "&data2 - Count" center;
+	define Percent_&data2 / display "&data2 - Percent of Total" center;
+	define Difference / display "Count Difference" center;
+	define Percent_Points / display "Percentage Point Change" center;
+	define Percent_change / display "Percent Change of Count" center;
+	define Percent_change2 / display "Percent Change of Percent" center;
+	compute Reason;
+		if Reason="Total" then do; call define(_row_,"STYLE","STYLE=[font_weight=bold background=#afffaf]"); end;
+	endcomp;
+	compute Difference;
+		if Difference>0 then do; call define("Difference","STYLE","STYLE=[foreground=green font_weight=bold]"); end;
+		if Difference<0 then do; call define("Difference","STYLE","STYLE=[foreground=red font_weight=bold]"); end;
+	endcomp;
+	compute Percent_Points;
+		if Percent_Points>0 then do; call define("Percent_Points","STYLE","STYLE=[foreground=green font_weight=bold]"); end;
+		if Percent_Points<0 then do; call define("Percent_Points","STYLE","STYLE=[foreground=red font_weight=bold]"); end;
+	endcomp;
+	compute Percent_change;
+		if Percent_change>0 then do; call define("Percent_change","STYLE","STYLE=[foreground=green font_weight=bold]"); end;
+		if Percent_change<0 then do; call define("Percent_change","STYLE","STYLE=[foreground=red font_weight=bold]"); end;
+	endcomp;
+	compute Percent_change2;
+		if Percent_change2>0 then do; call define("Percent_change2","STYLE","STYLE=[foreground=green font_weight=bold]"); end;
+		if Percent_change2<0 then do; call define("Percent_change2","STYLE","STYLE=[foreground=red font_weight=bold]"); end;
+	endcomp;
+	title1
+		c=black
+		h=18pt 
+		font="calibri" 
+		"&data1 vs. &data2";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: SAS Web Report Studio";
+run;
+
+***************************************************************************************************************************
+**************************************************************************************************************************;
+
+data &data1; set &data1;
+	if Reason="Total" then delete;
+	keep Reason Percent_&data1;
+	drop &data1 _BREAK_;
+run;
+
+data Top5_&data1; set &data1;
+run;
+
+proc sort data=Top5_&data1;
+	by descending Percent_&data1;
+run;
+
+*Identify three largest values in a dataset, sum rest;
+data Top5_&data1; set Top5_&data1 end=lastobs;
+	by descending Percent_&data1;
+	if _N_ in (1,2,3,4,5) then do;
+		deletethis = 0;
+	end;
+	else do;
+		Percent_sum + Percent_&data1;
+		deletethis = 1;
+	end;
+	if lastobs then do;
+		deletethis = 0;
+		Percent_&data1 = .;
+	end;
+	if deletethis then delete;
+	drop deletethis;
+run;
+
+*Clean up dataset;
+data Top5_&data1; set Top5_&data1;
+	if Percent_&data1=. then Reason="Sum of other categories";
+	if Percent_&data1=. then Percent_&data1=Percent_sum;
+	drop Percent_sum;
+run;
+
+data &data2; set &data2;
+	if Reason="Total" then delete;
+	keep Reason Percent_&data2;
+	drop &data2 _BREAK_;
+run;
+
+data Top5_&data2; set &data2;
+run;
+
+proc sort data=Top5_&data2;
+	by descending Percent_&data2;
+run;
+
+*Identify three largest values in a dataset, sum rest;
+data Top5_&data2; set Top5_&data2 end=lastobs;
+	by descending Percent_&data2;
+	if _N_ in (1,2,3,4,5) then do;
+		deletethis = 0;
+	end;
+	else do;
+		Percent_sum + Percent_&data2;
+		deletethis = 1;
+	end;
+	if lastobs then do;
+		deletethis = 0;
+		Percent_&data2 = .;
+	end;
+	if deletethis then delete;
+	drop deletethis;
+run;
+
+*Clean up dataset;
+data Top5_&data2; set Top5_&data2;
+	if Percent_&data2=. then Reason="Sum of other categories";
+	if Percent_&data2=. then Percent_&data2=Percent_sum;
+	drop Percent_sum;
+run;
+
+goptions hsize=30cm vsize=15cm;
+
+*Generate &data1 Graph;
+options topmargin=.25in bottommargin=.25in;
+proc gchart data=Top5_&data1;
+	title1
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"&data1 - Reasons for Call";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: SAS Web Report Studio";
+	pie Reason / 
+		type=sum 
+		sumvar=Percent_&data1 
+		noheader
+		slice=arrow
+		percent=arrow
+		radius=35
+		Legend=true;
+run;
+quit;
+
+*Generate &data2 Graph;
+options topmargin=.25in bottommargin=.25in;
+proc gchart data=Top5_&data2;
+	title1 
+		c=black 
+		h=18pt 
+		font="calibri" 
+		"&data2 - Reasons for Call";
+	title2
+		c=black 
+		h=12pt 
+		font="calibri" 
+		"Data Source: SAS Web Report Studio";
+	pie Reason / 
+		type=sum 
+		sumvar=Percent_&data2 
+		noheader
+		slice=arrow
+		percent=arrow
+		radius=35
+		Legend=true;
+run;
+quit;
